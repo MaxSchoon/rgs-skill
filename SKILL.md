@@ -2,19 +2,17 @@
 name: rgs
 description: >-
   Authoritative, source-validated guide to RGS (Referentie GrootboekSchema), the Dutch
-  standardized reference chart of accounts, for doing bookkeeping the standardized way so
-  annual reports and SBR filings (KvK, Belastingdienst IB/VPB/OB, CBS, banks) compile
-  easily and stay compliant. USE THIS SKILL WHENEVER the task touches: choosing or
-  validating an RGS code (referentiecode), mapping/koppelen a chart of accounts
-  (grootboekrekeningschema) to RGS, picking the right account subset for an entity type
-  (ZZP/eenmanszaak/BV) or sector (woningcorporaties, agro, zorg, banken), RGS levels
-  (niveau 1-5), omslagcodes, debet/credit, the RGS Taxonomie / SBR / Nederlandse
-  Taxonomie (NT) versions, the jaarrekening / annual accounts, winstaangifte, or RGS for
-  multinationals / IFRS / consolidation. Trigger EVEN when the user doesn't say "RGS" —
-  e.g. "which ledger account should this go to", "standardize my chart of accounts",
-  "set up bookkeeping so my annual report is easy", "wat is de juiste grootboekrekening",
-  "boek dit volgens de standaard", or any standardized-Dutch-bookkeeping question. If you
-  book in MoneyBird, this skill also covers the RGS-specific API details.
+  standardized reference chart of accounts, for bookkeeping the standardized way so annual
+  reports and SBR filings (KvK, Belastingdienst IB/VPB/OB, CBS, banks) compile easily and
+  stay compliant. USE THIS SKILL WHENEVER the task touches: choosing or validating an RGS
+  code (referentiecode), mapping/koppelen a chart of accounts to RGS, picking the right
+  account subset for an entity type (ZZP/eenmanszaak/BV) or sector (woningcorporaties,
+  agro, zorg, banken), RGS levels (niveau 1-5), omslagcodes, debet/credit, the RGS
+  Taxonomie / SBR / NT (Nederlandse Taxonomie) versions, jaarrekening/winstaangifte, or
+  RGS for multinationals / IFRS / consolidation. Trigger EVEN when the user doesn't say
+  "RGS" — e.g. "which ledger account should this go to", "standardize my chart of
+  accounts", "wat is de juiste grootboekrekening", "boek dit volgens de standaard", or any
+  standardized-Dutch-bookkeeping question. Covers MoneyBird's RGS API.
 ---
 
 # RGS — Referentie GrootboekSchema
