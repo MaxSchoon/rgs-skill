@@ -1,0 +1,18 @@
+# Local agent configuration (machine-specific) — never publish
+.claude
+.claude/
+.agents/
+
+# Evaluations / test harness — kept local, not published
+evals/
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python bytecode artifacts
+__pycache__/
+*.py[cod]
+
+# OS / editor cruft
+.DS_Store

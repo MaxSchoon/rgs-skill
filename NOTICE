@@ -1,0 +1,30 @@
+RGS Skill — Third-Party Attribution Notices
+===========================================
+
+The software in this repository is licensed under the MIT License (see
+LICENSE).
+
+This skill summarises and points to authoritative third-party material
+about the Dutch Referentie GrootboekSchema (RGS) and Standard Business
+Reporting (SBR), including publications by:
+
+- The RGS standard owner / Taakgroep RGS (referentiegrootboekschema.nl)
+- SBR Nederland and Logius (sbr-nl.nl, logius.nl, nltaxonomie.nl)
+- De Belastingdienst, the Kamer van Koophandel (KvK), CBS, SBR Nexus,
+  SBR Wonen, and the AFM
+- Onderzoeksbureau GBNED / Gerard Bottemanne (boekhoudplaza.nl,
+  softwarepakketten.nl), cited as the de-facto practitioner reference
+- Bookkeeping-software vendors (MoneyBird, Exact, Twinfield, AFAS,
+  e-Boekhouden, SnelStart, Yuki, Asperion) for product-specific behaviour
+
+Those documents, schemas, taxonomies, and product names remain the
+property of their respective publishers and are referenced under fair-use
+principles for interoperability and education. RGS reference codes and the
+RGS taxonomy are published by the RGS standard owner; this skill does not
+redistribute the official RGS master file — download it from
+referentiegrootboekschema.nl.
+
+Versions and rule numbers were verified at the time of writing. Always
+verify the operative version of any cited rule, code, or taxonomy against
+the publisher's primary source before relying on it for a regulated
+filing.
