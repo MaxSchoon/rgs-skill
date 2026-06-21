@@ -1,0 +1,39 @@
+name: 🗓️ Version update (RGS / NT)
+description: A new RGS version, RGS Taxonomie, or Nederlandse Taxonomie (NT) release needs to be reflected.
+title: "[version] "
+labels: ["version-update", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        RGS ships ~annually (and the NT/taxonomy follows). Use this to flag a
+        new release the skill should track. Remember the trap: **NTxx tracks the
+        reporting year, not the calendar year.**
+  - type: input
+    id: version
+    attributes:
+      label: New version
+      placeholder: "e.g. RGS 3.9 / NT21"
+    validations:
+      required: true
+  - type: input
+    id: announcement
+    attributes:
+      label: Official announcement URL
+      placeholder: "https://www.referentiegrootboekschema.nl/actueel ..."
+    validations:
+      required: true
+  - type: textarea
+    id: changes
+    attributes:
+      label: What changed / what to update
+      description: Which files/claims are affected (SKILL.md version line, reporting-compliance.md NT mapping, sources.md rows, …).
+    validations:
+      required: true
+  - type: checkboxes
+    id: coc
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

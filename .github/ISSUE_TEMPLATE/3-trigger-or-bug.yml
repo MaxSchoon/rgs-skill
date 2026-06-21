@@ -1,0 +1,42 @@
+name: 🐞 Trigger misfire / script bug
+description: The skill triggers when it shouldn't (or misses when it should), or scripts/rgs_lookup.py misbehaves.
+title: "[bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - Trigger misfire (fires when it shouldn't / misses when it should)
+        - Script bug (rgs_lookup.py)
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: For a trigger issue, paste the prompt. For a script bug, the command and output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment (for script bugs)
+      placeholder: "Python version, OS, --file used (or seed)"
+    validations:
+      required: false
+  - type: checkboxes
+    id: coc
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

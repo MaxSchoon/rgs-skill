@@ -1,0 +1,50 @@
+name: CI
+
+# Runs on PRs (incl. forks — read-only token, no secrets) and on pushes to main.
+# This job is the required status check enforced by the `main` ruleset; its job id
+# (`ci`) is what the ruleset's required_status_checks context must match.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege: drop the default token to read-only for the whole workflow.
+permissions:
+  contents: read
+
+# One run per ref; cancel superseded runs to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Pinned to a full commit SHA (immutable); the comment tracks the version
+      # and Dependabot bumps both together. ubuntu-latest already ships Python
+      # 3.10+, so no setup-python action is needed (fewer third-party deps).
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Python version
+        run: python3 --version
+
+      - name: Skill guardrails (size, description, references, compile)
+        run: python3 tests/check_skill.py
+
+      - name: Script compiles
+        run: python3 -m py_compile scripts/rgs_lookup.py
+
+      - name: Lookup script smoke tests (seed dataset)
+        run: |
+          python3 scripts/rgs_lookup.py --validate WBedAlkOal
+          python3 scripts/rgs_lookup.py --lookup BVorOva
+          python3 scripts/rgs_lookup.py --search kas --nivo 4
+          # A code that should NOT exist must fail (exit 1):
+          if python3 scripts/rgs_lookup.py --validate BNopeNope; then
+            echo "::error::validator accepted a non-existent code"; exit 1
+          fi
+          echo "smoke tests passed"

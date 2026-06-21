@@ -1,0 +1,46 @@
+name: 📚 Source correction
+description: The skill states something that the RGS master / SBR / official source contradicts.
+title: "[source] "
+labels: ["source-correction", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Use this when a factual claim in the skill is wrong or outdated. Every
+        correction needs a **primary-source citation** (a URL you actually
+        fetched, with its version/date). See CONTRIBUTING.md.
+  - type: input
+    id: location
+    attributes:
+      label: Where in the skill?
+      description: File and section/line (e.g. `references/structure-and-codes.md` → Omslag).
+      placeholder: references/...
+    validations:
+      required: true
+  - type: textarea
+    id: claim
+    attributes:
+      label: What the skill currently says
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: What it should say, and why
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Primary source (URL + version/date)
+      description: An authoritative URL you fetched — referentiegrootboekschema.nl, sbr-nl.nl, belastingdienst.nl, kvk.nl, wetten.overheid.nl, or GBNED (labelled as commentary).
+      placeholder: "https://...  (version/date: ...)"
+    validations:
+      required: true
+  - type: checkboxes
+    id: coc
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct.
+          required: true
