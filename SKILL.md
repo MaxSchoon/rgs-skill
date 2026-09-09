@@ -88,7 +88,7 @@ names in that order. Load one reference at a time.
 - **`scripts/rgs_lookup.py`** validates, looks up, and searches codes in the
   official RGS workbook, a CSV export, or its built-in seed. It reads
   `.xlsx` with the standard library alone, understands the official filter
-  columns (`--entity bv|ez|zzp|woco`, `--basis`, `--nivo 4`), reports
+  columns (`--entity bv|ez|zzp|sv|woco|zorg`, `--uitgebreid`, `--nivo 4`), reports
   `Inactief` and the omslag pair, and fetches the official workbook with
   `--fetch 3.8` (URL verified 2026-09-09; the seed is a convenience only).
   Run it before asserting that any niveau-4 code exists.

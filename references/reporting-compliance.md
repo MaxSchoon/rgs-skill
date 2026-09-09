@@ -68,8 +68,8 @@ bank, tax and SBR Wonen entrypoints "nog niet beschikbaar" at alfa time
 
 `NT20_RGS_20251210.zip` unpacks to `www.nltaxonomie.nl/rgs/nt20/rgs/20251210/`
 with `dictionary/`, `entrypoints/`, `mapping/` and `presentation/`. The
-`entrypoints/` directory holds 25 schemas: `rgs-rpt-reference-codes.xsd`
-(the code list itself) and 24 `rgs-to-<domain>-…` schemas [S10]:
+`entrypoints/` directory holds 26 schemas: `rgs-rpt-reference-codes.xsd`
+(the code list itself) and 25 `rgs-to-<domain>-…` schemas [S10]:
 
 | Domain | Entrypoints mapped |
 |---|---|
