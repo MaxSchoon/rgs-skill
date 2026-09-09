@@ -13,7 +13,7 @@ body:
     id: location
     attributes:
       label: Where in the skill?
-      description: File and section/line (e.g. `references/structure-and-codes.md` → Omslag).
+      description: File and section/line (e.g. `references/structure-and-codes.md`, section D/C and omslag, marker [S7]).
       placeholder: references/...
     validations:
       required: true

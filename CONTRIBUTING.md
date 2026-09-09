@@ -1,155 +1,124 @@
 # Contributing to the RGS Skill
 
-Thanks for considering a contribution. This skill is read by AI agents and
-by people doing their own bookkeeping, so its accuracy directly affects the
-quality and compliance of real Dutch administraties and filings.
-Contributions are welcome from anyone — bookkeepers, accountants, tax
-advisers, software vendors, RGS/SBR insiders, and engineers building
-bookkeeping tools.
+This skill is read by AI agents and by people keeping real Dutch
+administraties, so its accuracy reaches filed returns. Contributions are
+welcome from bookkeepers, accountants, tax advisers, software vendors, RGS
+and SBR insiders, and engineers building bookkeeping tools.
 
 ## What this project is
 
-A vendor-neutral skill for any AI-agent runtime that supports the standard
-skill convention. It contains:
+- `SKILL.md`: the agent entry point (intake, pins, invariants, index). No
+  domain facts of its own.
+- `references/`: one file per topic, each with sources.
+- `scripts/rgs_lookup.py`: a standard-library validator over the official
+  workbook.
+- `tests/`: the structural gate and the script's unit tests.
 
-- `SKILL.md` — the agent entrypoint (model, routing, core workflow)
-- `references/` — primary-source-cited notes on RGS fundamentals &
-  governance, structure & codes, scope/filters/entities, reporting &
-  compliance, software & MoneyBird, multinationals & IFRS, and the source
-  register
-- `scripts/rgs_lookup.py` — a pure-stdlib RGS code validator / lookup tool
+No harness-specific assumptions: no "use tool X", no vendor-only
+instructions presented as universal.
 
-There are no harness-specific assumptions in this repo. Do not introduce
-them (no "use tool X", no vendor-only instructions presented as universal).
+## Three rules
 
-## Discipline
+### 1. A primary source for every claim
 
-Three rules govern every change:
+Every factual statement in a reference carries an `[Sn]` marker that
+resolves to a `**[Sn]**` entry in that file's `## Sources` list. An entry
+gives the title, the publisher, the page or file date or version where the
+page states one, `Available from: <URL>`, `[viewed YYYY-MM-DD]`, and the
+tier. Dates are ISO 8601 (`YYYY-MM-DD`). Prefer the publisher's permalink
+over a search result, and the workbook or zip itself over a page about it.
 
-### 1. Primary-source validation
+Authority, in order: referentiegrootboekschema.nl (Kennisbank workbooks,
+taxonomy zips, explanatory pages, news), nltaxonomie.nl, sbr-nl.nl, kvk.nl,
+belastingdienst.nl, wetten.overheid.nl and the Staatsblad (tier 1);
+boekhoudplaza.nl and softwarepakketten.nl by Onderzoeksbureau GBNED
+(tier 2, the practitioner reference, not the standard); vendor
+documentation (tier 3, authoritative for that product only).
 
-Every factual claim must trace to an authoritative source the contributor
-has actually fetched. In order of authority:
+Cite the version you checked: RGS codes, filters and omslagcodes change
+between versions. Where the workbook is the source, say which sheet and
+that you measured it (the script is the instrument).
 
-- **Authoritative:** referentiegrootboekschema.nl (the RGS standard owner /
-  Taakgroep RGS), sbr-nl.nl & logius.nl & nltaxonomie.nl (SBR / Nederlandse
-  Taxonomie), belastingdienst.nl, kvk.nl, cbs.nl, afm.nl, and Dutch law
-  (wetten.overheid.nl, Staatsblad).
-- **Practitioner reference:** boekhoudplaza.nl / softwarepakketten.nl
-  (GBNED / Gerard Bottemanne) — influential and detailed, but **not** the
-  formal standard; label it as commentary.
-- **Corroborating:** bookkeeping-software vendor docs (product-specific
-  behaviour only).
+### 2. State gaps as gaps
 
-Cite the URL with its **version/date**, and add or update the row in
-`references/sources.md`. RGS reference codes change between versions —
-prefer the durable referentiecode over the example referentienummer, and
-say which RGS version a claim was checked against.
+If you could not verify something, say so in the text rather than smoothing
+it over: "not found in the 3.8 workbook", "GBNED documents this; the owner's
+pages are silent", "observed in the API; not in its documentation". A stated
+gap is a contribution; a confident guess is a regression. When two sources
+disagree (the 9-digit number in the velddefinities versus the 7-digit layout
+in the workbook), keep both and say which one the data follows.
 
-### 2. Honest-gap discipline
+### 3. Vendor- and harness-neutral language
 
-If you could not verify a claim, say so rather than papering over it:
+Do not name agent harnesses, IDEs or assistants, or hard-code one runtime's
+tool names. Bookkeeping-software behaviour (MoneyBird, AFAS, and so on) is in
+scope, labelled as that product's behaviour and dated.
 
-- "Not verified against the RGS 3.8 master; included pending confirmation."
-- "boekhoudplaza documents this, but the official velddefinities are silent."
-- "Behaviour observed in MoneyBird's API; not stated in its public docs."
+## Reference shape (enforced)
 
-A documented gap is a contribution; a confident-sounding fabrication is a
-regression. The skill already flags real ambiguities (e.g. the 7-vs-9-digit
-referentienummer discrepancy, the omslag timing) — keep that habit.
+Each `references/*.md` has:
 
-### 3. Vendor-neutral language
+1. Front matter with `reference_id` (equal to the file name), `verified_on`
+   (`YYYY-MM-DD`) and `rgs_version`.
+2. One H1, then a `**Load this when:**` line and a `**Do not load this
+   when:**` line, decidable from the agent's situation.
+3. `## Contents` as the first H2, listing every H2 that follows, with links
+   that resolve.
+4. Named sections, never numbered.
+5. `## Sources` as the last H2, with `- **[Sn]** …` entries; every marker in
+   the body resolves, every entry is cited, every entry has a URL and a
+   viewed date.
 
-The skill must be usable in any agent harness. Don't name specific
-harnesses, IDEs, or assistants, and don't hard-code one runtime's tool
-names — say "use your agent's web search/fetch tools". Product-specific
-behaviour of *bookkeeping software* (MoneyBird, Exact, etc.) is in scope,
-but must be clearly labelled as that product's behaviour, not RGS itself.
+`tests/check_skill.py` checks all of it, plus SKILL.md's size (under 32 KiB
+and 500 lines) and description (under 1024 characters), and that every
+reference is linked from SKILL.md.
 
-## Freshness discipline (RGS is versioned annually)
+## Freshness
 
-RGS ships a new minor version roughly every December, and the matching RGS
-Taxonomie / NT version follows. Before changing any version-sensitive
-claim, check **referentiegrootboekschema.nl/actueel** and update:
+RGS ships a new version each December (alfa in July, bèta in October) and
+the RGS Taxonomie follows in January; the NT generation enters production
+in December. Before changing a version-sensitive claim, read
+`referentiegrootboekschema.nl/actueel` and the SBR release calendar, then
+update the tables in `references/versions-governance.md` and
+`references/reporting-compliance.md`, the pin in `SKILL.md`, and the
+`rgs_version` and `verified_on` front matter of every reference you touched.
 
-- the version statements in `SKILL.md` and `fundamentals-governance.md`,
-- the NT/taxonomy mapping in `reporting-compliance.md` (mind the trap:
-  **NTxx tracks the reporting year, not the calendar year**),
-- the affected rows in `references/sources.md` (mark superseded entries).
+## Script
 
-## Size discipline (skill-runtime limits)
+`scripts/rgs_lookup.py` must stay standard-library only and runnable on
+Python 3.10+. Its behaviour on the official layout is pinned by
+`tests/test_rgs_lookup.py`, which generates a workbook fixture with the real
+header layout; a bug fix lands with a test that fails without it. Seed codes
+are added only after checking them in the official workbook, with the
+official description.
 
-Skills load into runtimes that enforce real size limits. A bloated
-`SKILL.md` is silently truncated by some runtimes and crowds out other
-skills. Keep:
-
-- **YAML frontmatter `description`** ≤ **1024 characters** (the runtime
-  reads it to decide whether to load the skill at all).
-- **`SKILL.md` body** ≤ **32 KiB** and aim for **< 500 lines**.
-
-Prefer extending a file in `references/` over growing `SKILL.md` —
-reference files load only when the body points the agent at them
-(progressive disclosure). Before merging an edit that grows `SKILL.md`:
-
-```bash
-wc -c SKILL.md   # keep under 32768
-```
-
-## Script integrity
-
-Every change to `scripts/rgs_lookup.py` must keep it runnable on a clean
-Python 3.10+ with no third-party packages (the `.xlsx` path's `openpyxl`
-import is optional and guarded). Before opening a PR:
+## Local checks
 
 ```bash
+python3 tests/check_skill.py
+npx --yes markdownlint-cli2@0.18.1
 python3 -m py_compile scripts/rgs_lookup.py
-python3 scripts/rgs_lookup.py --validate WBedAlkOal     # seed smoke test
-python3 scripts/rgs_lookup.py --search kas --nivo 4
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 scripts/rgs_lookup.py --validate WBedKanKoa      # lookup smoke test (cache if present, else seed)
 ```
 
-If you add codes to the built-in seed, only add ones attested in a cited
-source, and keep the "not authoritative — verify against the master"
-notice intact. Never guess a niveau-4 code tail from the letters.
+Paste the output into the pull request.
 
 ## How to contribute
 
-1. **Fork** the repo on GitHub.
-2. **Branch**, named for the change kind:
-   - `fix/nt20-entrypoint-citation`
-   - `update/rgs-39-release`
-   - `docs/omslag-clarification`
-   - `trigger/false-fire-on-non-dutch`
-3. **Make focused changes.** One logical change per PR.
-4. **Run the local checks** (above) and paste output into the PR.
-5. **Open a PR** with a clear description, citing a primary source (URL +
-   version/date) for every factual claim added or changed.
-6. **Respond to review.** Source citations may be requested for claims that
-   look right but are uncited.
-
-## PR checklist
-
-- Type of change identified
-- Primary-source citation (URL + version/date) for every new/changed claim
-- `references/sources.md` updated (new rows; superseded rows marked)
-- Vendor-/harness-neutral language preserved
-- `SKILL.md` still under 32 KiB
-- Script still compiles and the smoke tests pass
-- Honest-gap notes preserved or added where applicable
+1. Fork, then branch by change kind: `fix/omslag-count`,
+   `update/rgs-39-definitive`, `docs/moneybird-status-codes`,
+   `trigger/false-fire-on-belgian-pcmn`.
+2. One logical change per pull request.
+3. Run the local checks and paste the output.
+4. Open the PR with the template; cite the sources you fetched.
+5. Respond to review; a citation may be requested for anything uncited.
 
 ## Reporting bugs and gaps
 
-Issues are most actionable when labelled by kind:
-
-- **Source correction** — "the skill says X but the RGS master / SBR says Y"
-- **Version update** — "RGS 3.9 / NTxx changed Z; update files A and B"
-- **Software behaviour** — "MoneyBird/Exact now does this differently"
-- **Trigger misfire** — "skill fires on X but shouldn't / misses Y"
-- **Script bug** — anything in `rgs_lookup.py`
-- **Enhancement** — proposals for new content or structure
-
-For anything that could affect **filing integrity** (a code or rule in the
-skill that would produce a non-compliant SBR/jaarrekening/aangifte), email
-**contact@doc2ixbrl.com** before filing publicly.
+Use the issue templates: source correction, version update, trigger or
+bug, enhancement. For anything that could affect filing integrity, email
+**contact@doc2ixbrl.com** before filing publicly (see `SECURITY.md`).
 
 ## License
 

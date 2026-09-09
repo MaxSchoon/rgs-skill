@@ -1,346 +1,578 @@
 #!/usr/bin/env python3
+"""Look up, validate, and search RGS (Referentie GrootboekSchema) codes.
+
+Reads the official RGS workbook (.xlsx) with the standard library only, a
+CSV/TSV export (official layout or GBNED/boekhoudplaza layout), or a small
+built-in seed. Understands the official filter columns: the "te kiezen bij
+aard" group selects (Basis, Uitgebr, EZ/VOF, ZZP, WoCo, Zorg) and the
+"te vervallen" group drops (Inactief, BB, Agro, WKR, EZ/VOF, BV, WoCo, Zorg,
+Bank, OZW-Coop-Sticht-FWO, ...). The BV drop column marks codes specific to a
+BV; an entity that is not a BV removes them, a BV keeps them.
+
+    python3 rgs_lookup.py --fetch 3.8                # download the official workbook
+    python3 rgs_lookup.py --validate WBedKanKoa      # exit 0 valid, 1 unknown, 2 inactive
+    python3 rgs_lookup.py --search hosting --entity bv --nivo 4
+    python3 rgs_lookup.py --lookup BLimBanRba        # shows the omslag partner
+    python3 rgs_lookup.py --children WBedKan         # the next level down
+
+Without --file the cached official workbook is used when present, otherwise
+the seed. The seed holds a few dozen codes verified against RGS 3.8; it is a
+convenience, not the standard. Exit codes: 0 ok, 1 not found / no match,
+2 found but inactive, 3 usage or input error.
 """
-rgs_lookup.py — look up and validate RGS (Referentie GrootboekSchema) codes.
 
-Why this exists
----------------
-Picking the right RGS reference code (and confirming it actually exists in the version
-your software supports) is the single most error-prone step in RGS bookkeeping. This
-tool turns the official RGS master into a queryable index so an agent can:
-  - validate that a referentiecode exists (optionally within a version filter),
-  - look up an account's description, niveau, D/C and omslagcode,
-  - fuzzy-search by Dutch description ("debiteuren", "afschrijving", ...),
-  - filter to an entity type (BV / EZ / ZZP) and to niveau 4 (the bookable level).
-
-Source of truth
----------------
-The authoritative dataset is the official Excel master from
-referentiegrootboekschema.nl (Kennisbank > "Download RGS"; current RGS 3.8). Download it
-and point this script at it (Excel needs `openpyxl`; a CSV/TSV export needs nothing):
-
-    python rgs_lookup.py --file RGS_3.8.xlsx --lookup BLimKasKas
-    python rgs_lookup.py --file RGS_3.8.csv  --search "algemene kosten" --entity BV --nivo 4
-    python rgs_lookup.py --file RGS_3.8.xlsx --validate WBedAlkOal
-
-Column headers vary between the official Excel and GBNED/boekhoudplaza exports, so the
-loader matches headers case-insensitively against several known aliases. If your export
-uses different names, pass them via --col-code / --col-desc etc.
-
-Offline fallback
-----------------
-With no --file, the script uses a SMALL built-in seed of common, well-attested codes for
-a Dutch MKB BV. The seed is a convenience for quick checks ONLY — it is not the complete
-schema and must not be treated as authoritative. Always validate against the official
-master before booking.
-
-MoneyBird note
---------------
-MoneyBird's API is pinned to RGS 3.5 and requires a valid `rgs_code` on ledger-account
-creation. Because the RGS core is stable since 3.0, common codes are present in 3.5 — but
-if you build a validator for MoneyBird, filter your dataset to codes valid in 3.5.
-"""
 from __future__ import annotations
 
 import argparse
 import csv
+import io
+import json
+import os
+import re
 import sys
+import urllib.request
+import zipfile
 from dataclasses import dataclass, field
+from pathlib import Path
+from xml.etree import ElementTree as ET
 
-# --- Header aliases (lowercased) ------------------------------------------------------
-# The loader maps each logical field to the first matching column it finds.
-HEADER_ALIASES: dict[str, list[str]] = {
-    "code": ["referentiecode", "rgs-code", "rgs code", "rgscode", "code", "refcode"],
-    "desc": ["omschrijving", "grootboekomschrijving", "standaardomschrijving",
-             "omschrijving (lang)", "naam", "description"],
-    "nummer": ["referentienummer", "rgs-nr", "rgs nr", "referentiegrootboeknummer",
-               "nummer", "reknr", "rgsnr"],
-    "nivo": ["niveau", "nivo", "nv", "level"],
-    "dc": ["d/c", "dc", "debet/credit", "debet credit", "indicatie d/c"],
-    "omslag": ["omslagcode", "omslag", "omslagrekening"],
-    "zzp": ["zzp"],
-    "ez": ["ez", "ez_vof", "eenmanszaak"],
-    "bv": ["bv"],
-    "sv": ["sv", "svc", "stichting"],
-    "branche": ["branche", "branchecode"],
-    "status": ["status", "actief", "vervallen"],
-    "sortering": ["sortering", "sorteercode", "sortering bw2"],
+# Official download URLs, verified 2026-09-09 (Kennisbank items
+# /definitieve-versie-rgs-38 and /alfaversie-rgs-39). They can rot; --fetch
+# reports the URL it tried so a failure is diagnosable.
+OFFICIAL_URLS = {
+    "3.8": "https://www.referentiegrootboekschema.nl/sites/default/files/kennisbank/RGS%203.8-def.xlsx",
+    "3.9a": "https://www.referentiegrootboekschema.nl/sites/default/files/kennisbank/RGS%203.9-alfa.xlsx",
 }
+CACHE_DIR = Path(os.environ.get("RGS_CACHE_DIR", Path.home() / ".cache" / "rgs"))
+
+# Column aliases, lower-cased. The official workbook and GBNED exports differ.
+HEADER_ALIASES: dict[str, list[str]] = {
+    "code": ["referentiecode", "rgs-code", "rgs code", "rgscode", "refcode", "code"],
+    "omslag": ["referentieomslagcode", "omslagcode", "omslag", "omslagrekening"],
+    "sortering": ["sortering", "sorteercode", "sortering bw2"],
+    "nummer": ["referentienummer", "refnr", "rgs-nr", "rgs nr", "referentiegrootboeknummer", "nummer", "rgsnr"],
+    "desc_short": ["omschrijving (verkort)", "omschrijving kort", "omschrijvingkort"],
+    "desc": ["omschrijving", "grootboekomschrijving", "standaardomschrijving", "omschrijving (lang)", "naam", "description"],
+    "dc": ["d/c", "dc", "debet/credit", "debet credit", "indicatie d/c"],
+    "nivo": ["nivo", "niveau", "nv", "level"],
+    "inactief": ["inactief", "status", "actief", "vervallen"],
+    "reknr": ["reknr", "rekeningnummer", "rgs-rekeningnummer"],
+}
+CHOOSE_COLUMNS = {"basis", "uitgebr", "uitgebreid", "ez/vof", "zzp", "woco", "zorg"}
+GBNED_ENTITY_COLUMNS = {"zzp", "ez", "bv", "sv", "svc"}
+ENTITY_HELP = "bv, ez (eenmanszaak/VOF), zzp, sv (stichting/vereniging), woco, zorg"
+# Sector drop columns removed for every entity unless --keep names them.
+SECTOR_DROPS = ("agro", "wkr", "bank", "ozw-coop-sticht-fwo", "woco", "zorg")
 
 
 @dataclass
 class RgsAccount:
     code: str
     desc: str = ""
+    desc_short: str = ""
     nummer: str = ""
     nivo: str = ""
     dc: str = ""
     omslag: str = ""
-    entities: dict[str, str] = field(default_factory=dict)  # zzp/ez/bv/sv -> J/J+/P/N
-    branche: str = ""
-    status: str = ""
+    sortering: str = ""
+    inactive: bool = False
+    choose: dict[str, bool] = field(default_factory=dict)  # official "te kiezen" columns
+    drop: dict[str, bool] = field(default_factory=dict)  # official "te vervallen" columns
+    gbned: dict[str, str] = field(default_factory=dict)  # GBNED ZZP/EZ/BV/SV -> J / J+ / P / N
 
     @property
-    def vervallen(self) -> bool:
-        blob = f"{self.status} {self.desc}".lower()
-        return "vervallen" in blob
+    def parent(self) -> str:
+        if len(self.code) <= 1:
+            return ""
+        return self.code[:-3] if len(self.code) > 4 else self.code[0]
 
-    def applies_to(self, entity: str) -> bool:
-        """entity in {zzp, ez, bv, sv}. True if flagged J / J+ / P (basis or uitgebreid)."""
-        val = (self.entities.get(entity.lower(), "") or "").strip().upper()
-        return val in {"J", "J+", "P"}
+    def as_dict(self) -> dict:
+        return {
+            "code": self.code, "desc": self.desc, "desc_short": self.desc_short,
+            "nummer": self.nummer, "nivo": self.nivo, "dc": self.dc, "omslag": self.omslag,
+            "sortering": self.sortering, "inactive": self.inactive,
+            "choose": sorted(k for k, v in self.choose.items() if v),
+            "drop": sorted(k for k, v in self.drop.items() if v),
+            "gbned": {k: v for k, v in self.gbned.items() if v},
+        }
 
-    def __str__(self) -> str:
-        bits = [self.code]
+    def fmt(self, db: dict[str, RgsAccount] | None = None) -> str:
+        head = [self.code]
         if self.nivo:
-            bits.append(f"niv{self.nivo}")
+            head.append(f"niveau {self.nivo}")
         if self.dc:
-            bits.append(self.dc)
+            head.append(self.dc)
         if self.nummer:
-            bits.append(f"#{self.nummer}")
-        head = "  ".join(bits)
-        line = f"{head}\n    {self.desc}"
+            head.append(f"nr {self.nummer}")
+        out = ["  ".join(head), f"    {self.desc or self.desc_short}"]
         if self.omslag:
-            line += f"\n    omslag → {self.omslag}"
-        if self.vervallen:
-            line += "\n    ⚠️ VERVALLEN (expired — do not use)"
-        return line
+            partner = db.get(self.omslag) if db else None
+            out.append(f"    omslagcode -> {self.omslag}" + (f"  ({partner.desc})" if partner else ""))
+        flags = [k for k, v in self.choose.items() if v]
+        drops = [k for k, v in self.drop.items() if v]
+        if flags or drops:
+            out.append(f"    kiezen: {', '.join(flags) or '-'}   vervallen bij: {', '.join(drops) or '-'}")
+        if self.gbned:
+            out.append("    " + "  ".join(f"{k.upper()}={v or '-'}" for k, v in self.gbned.items()))
+        if self.inactive:
+            out.append("    INACTIEF: retired code, do not book to it")
+        return "\n".join(out)
 
 
-# --- Built-in seed (convenience only; NOT the full schema) ----------------------------
-# A small map of codes ATTESTED in the skill's source research. niveau 1-3 are grouping
-# nodes (not bookable); the niveau-4 entries are the ones confirmed in sources. For any
-# code NOT listed here, you MUST consult the official master — do not guess a niveau-4
-# tail. Descriptions are indicative; confirm exact spelling against the RGS 3.8 Excel.
+# --- seed: codes verified against RGS 3.8-def.xlsx on 2026-09-09 --------------
+# (code, description, nivo, D/C, omslagcode). Grouping levels are not bookable.
 _SEED_ROWS = [
-    # code, desc, nivo, dc, omslag   (omslag only where a pair is documented)
-    # --- niveau 1-2 rubrieken (structure; not bookable) ---
-    ("B", "Balans", "1", "", ""),
-    ("W", "Winst-en-verliesrekening", "1", "", ""),
-    ("BIva", "Immateriële vaste activa", "2", "", ""),
-    ("BMva", "Materiële vaste activa", "2", "", ""),
-    ("BFva", "Financiële vaste activa", "2", "", ""),
-    ("BVrd", "Voorraden", "2", "", ""),
-    ("BVor", "Vorderingen", "2", "", ""),
-    ("BLim", "Liquide middelen", "2", "", ""),
-    ("BEiv", "Eigen vermogen / Kapitaal", "2", "", ""),
-    ("BVrz", "Voorzieningen", "2", "", ""),
-    ("BLas", "Langlopende schulden", "2", "", ""),
-    ("BSch", "Kortlopende schulden", "2", "", ""),
-    ("WOmz", "Netto-omzet", "2", "", ""),
-    ("WKpr", "Kostprijs van de omzet", "2", "", ""),
-    ("WPer", "Lasten uit hoofde van personeelsbeloningen", "2", "", ""),
-    ("WAfs", "Afschrijvingen op imm./mat. vaste activa", "2", "", ""),
-    ("WBed", "Overige bedrijfskosten", "2", "", ""),
-    ("WFbe", "Financiële baten en lasten", "2", "", ""),
-    ("WBel", "Belastingen", "2", "", ""),
-    ("WNer", "Nettoresultaat", "2", "", ""),
-    # --- niveau 3 rubrieken (documented in sources) ---
-    ("BVorDeb", "Debiteuren", "3", "", ""),
-    ("BVorOva", "Overlopende activa", "3", "", "BSchOpa"),
-    ("BSchOpa", "Overlopende passiva", "3", "", "BVorOva"),
-    ("BLimKas", "Kasmiddelen", "3", "", ""),
-    ("BMvaBeg", "Bedrijfsgebouwen", "3", "", ""),
-    # --- niveau 4 bookable accounts (CONFIRMED in sources) ---
-    ("BLimKasKas", "Kas", "4", "D", ""),
+    ("B", "Balans", "1", "", ""), ("W", "Winst-en-verliesrekening", "1", "", ""),
+    ("BIva", "Immateriële vaste activa", "2", "D", ""), ("BMva", "Materiële vaste activa", "2", "D", ""),
+    ("BVas", "Vastgoedbeleggingen", "2", "D", ""), ("BFva", "Financiële vaste activa", "2", "D", ""),
+    ("BEff", "Effecten (kortlopend)", "2", "D", ""), ("BVrd", "Voorraden", "2", "D", ""),
+    ("BPro", "Onderhanden projecten (activa)", "2", "D", ""), ("BVor", "Vorderingen", "2", "D", ""),
+    ("BLim", "Liquide middelen", "2", "D", ""), ("BEiv", "Groepsvermogen - Eigen vermogen - Kapitaal", "2", "C", ""),
+    ("BEga", "Egalisatierekening", "2", "C", ""), ("BVrz", "Voorzieningen", "2", "C", ""),
+    ("BLas", "Langlopende schulden", "2", "C", ""), ("BSch", "Kortlopende schulden", "2", "C", ""),
+    ("WOmz", "Netto-omzet", "2", "C", ""), ("WWiv", "Wijziging voorraden", "2", "C", ""),
+    ("WOvb", "Overige bedrijfsopbrengsten", "2", "C", ""), ("WKpr", "Kostprijs van de omzet", "2", "D", ""),
+    ("WPer", "Lasten uit hoofde van personeelsbeloningen", "2", "D", ""),
+    ("WAfs", "Afschrijvingen op immateriële en materiële vaste activa", "2", "D", ""),
+    ("WBed", "Overige bedrijfskosten", "2", "D", ""), ("WFbe", "Financiële baten en lasten", "2", "C", ""),
+    ("WBel", "Belastingen", "2", "D", ""), ("WNer", "Nettoresultaat", "2", "C", ""),
+    ("BMvaBeg", "Bedrijfsgebouwen", "3", "D", ""), ("BVorDeb", "Vorderingen op handelsdebiteuren", "3", "D", ""),
+    ("BVorOva", "Overlopende activa", "3", "D", ""), ("BLimKas", "Kasmiddelen", "3", "D", ""),
+    ("BEivGok", "Aandelenkapitaal", "3", "C", ""), ("BEivKap", "Eigen vermogen onderneming natuurlijke personen", "3", "C", ""),
+    ("BEivAvd", "Aandeel van derden", "3", "C", ""), ("BSchOpa", "Overlopende passiva", "3", "C", ""),
+    ("WBedAut", "Autokosten en andere vervoermiddelen", "3", "D", ""), ("WBedKan", "Kantoorkosten", "3", "D", ""),
+    ("WBedAlk", "Andere kosten", "3", "D", ""),
     ("BMvaBegVvp", "Verkrijgings- of vervaardigingsprijs bedrijfsgebouwen", "4", "D", ""),
-    ("WBedAlkOal", "Algemene kosten", "4", "D", ""),          # common general-expenses account
-    ("WBedAutOak", "Overige autokosten", "4", "D", ""),
-    ("WMfoBelMfo", "Mutatie fiscale oudedagsreserve - belasting (IB; from MoneyBird API docs)", "4", "D", ""),
-    # --- niveau 5 mutatie (balance accounts only; example) ---
-    ("BMvaBegVvpIna", "Investeringen nieuw aangeschaft bedrijfsgebouwen", "5", "D", ""),
+    ("BVorDebHad", "Handelsdebiteuren nominaal", "4", "D", ""),
+    ("BLimKasKas", "Kas kasmiddelen", "4", "D", ""),
+    ("BLimBanRba", "Rekening-courant bank tegoeden bij banken", "4", "D", "BSchSakRba"),
+    ("BEivGokGea", "Normale aandelen aandelenkapitaal", "4", "C", ""),
+    ("BEivKapPrs", "Privé-stortingen", "4", "C", ""), ("BEivKapPro", "Privé-opnamen", "4", "D", ""),
+    ("BSchCreHac", "Handelscrediteuren nominaal schulden aan leveranciers en handelskredieten", "4", "C", ""),
+    ("WBedAutOak", "Overige autokosten autokosten en andere vervoermiddelen", "4", "D", ""),
+    ("WBedKanKoa", "Kosten automatisering kantoorkosten", "4", "D", ""),
+    ("WBedKanSof", "Kosten software abonnementen", "4", "D", ""),
+    ("WBedAlkOal", "Algemene kosten andere kosten", "4", "D", ""),
+    ("WFbeRlmRgi", "Rentebaten vorderingen groepsmaatschappijen binnenland", "4", "C", "WFbeRlsRgi"),
+    ("WFbeRlmRgu", "Rentebaten vorderingen groepsmaatschappijen buitenland", "4", "C", "WFbeRlsRgu"),
+    ("WMfoBelMfo", "Mutatie fiscale oudedagsreserve belastingen over de winst of het verlies", "4", "D", ""),
+    ("BMvaBegVvpBeg", "Beginbalans (overname eindsaldo vorig jaar) bedrijfsgebouwen", "5", "D", ""),
+    ("BMvaBegVvpLie", "Investeringen bedrijfsgebouwen", "5", "D", ""),
 ]
 
 
-def _load_seed() -> dict[str, RgsAccount]:
-    out: dict[str, RgsAccount] = {}
-    for code, desc, nivo, dc, omslag in _SEED_ROWS:
-        out[code] = RgsAccount(code=code, desc=desc, nivo=nivo, dc=dc, omslag=omslag,
-                               entities={"bv": "J"})
-    return out
+def load_seed() -> dict[str, RgsAccount]:
+    return {c: RgsAccount(code=c, desc=d, nivo=n, dc=dc, omslag=o, choose={"basis": True})
+            for c, d, n, dc, o in _SEED_ROWS}
 
 
-# --- Loading ---------------------------------------------------------------------------
-def _resolve_headers(headers: list[str], overrides: dict[str, str]) -> dict[str, int]:
-    lowered = [h.strip().lower() for h in headers]
-    idx: dict[str, int] = {}
-    for field_name, aliases in HEADER_ALIASES.items():
-        if field_name in overrides and overrides[field_name]:
-            want = overrides[field_name].strip().lower()
-            if want in lowered:
-                idx[field_name] = lowered.index(want)
+# --- minimal .xlsx reader (standard library only) -----------------------------
+_NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+       "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+       "pr": "http://schemas.openxmlformats.org/package/2006/relationships"}
+
+
+def _col_index(ref: str) -> int:
+    n = 0
+    for ch in ref:
+        if ch.isalpha():
+            n = n * 26 + (ord(ch.upper()) - 64)
+        else:
+            break
+    return n - 1
+
+
+def xlsx_sheet_names(path: str) -> list[str]:
+    with zipfile.ZipFile(path) as z:
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+    return [s.get("name", "") for s in wb.find("m:sheets", _NS)]
+
+
+def _sheet_part(z: zipfile.ZipFile, sheet: str | None) -> tuple[str, str]:
+    wb = ET.fromstring(z.read("xl/workbook.xml"))
+    rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+    rid_to_target = {r.get("Id"): r.get("Target", "") for r in rels}
+    sheets = wb.find("m:sheets", _NS)
+    chosen = None
+    for s in sheets:
+        name = s.get("name", "")
+        if sheet is None and name.lower().startswith("totaal"):
+            chosen = s
+            break
+        if sheet is not None and name == sheet:
+            chosen = s
+            break
+    if chosen is None:
+        if sheet is not None:
+            raise SystemExit(f"Sheet {sheet!r} not found; sheets: {[s.get('name') for s in sheets]}")
+        chosen = sheets[0]
+    target = rid_to_target[chosen.get(f"{{{_NS['r']}}}id")]
+    target = target.lstrip("/")
+    if not target.startswith("xl/"):
+        target = "xl/" + target
+    return chosen.get("name", ""), target
+
+
+def read_xlsx_rows(path: str, sheet: str | None = None):
+    """Yield (sheet_name, rows) where rows is an iterator of lists of strings."""
+    with zipfile.ZipFile(path) as z:
+        shared: list[str] = []
+        if "xl/sharedStrings.xml" in z.namelist():
+            for si in ET.fromstring(z.read("xl/sharedStrings.xml")).iter(f"{{{_NS['m']}}}si"):
+                shared.append("".join(t.text or "" for t in si.iter(f"{{{_NS['m']}}}t")))
+        name, part = _sheet_part(z, sheet)
+        data = z.read(part)
+
+    def rows():
+        tag_row = f"{{{_NS['m']}}}row"
+        tag_c = f"{{{_NS['m']}}}c"
+        tag_v = f"{{{_NS['m']}}}v"
+        tag_is = f"{{{_NS['m']}}}is"
+        for _, el in ET.iterparse(io.BytesIO(data), events=("end",)):
+            if el.tag != tag_row:
                 continue
+            row: list[str] = []
+            for c in el.findall(tag_c):
+                idx = _col_index(c.get("r", ""))
+                t = c.get("t", "")
+                if t == "s":
+                    v = c.find(tag_v)
+                    val = shared[int(v.text)] if v is not None and v.text else ""
+                elif t == "inlineStr":
+                    is_ = c.find(tag_is)
+                    val = "".join(x.text or "" for x in is_.iter(f"{{{_NS['m']}}}t")) if is_ is not None else ""
+                else:
+                    v = c.find(tag_v)
+                    val = v.text if v is not None and v.text is not None else ""
+                    if val.endswith(".0"):
+                        val = val[:-2]
+                while len(row) <= idx:
+                    row.append("")
+                row[idx] = val.strip()
+            el.clear()
+            yield row
+
+    return name, rows()
+
+
+# --- header resolution and row parsing --------------------------------------
+def _find_header(rows) -> tuple[list[str], list[list[str]]]:
+    buffered: list[list[str]] = []
+    for row in rows:
+        lowered = [c.lower() for c in row]
+        if any(h in HEADER_ALIASES["code"] for h in lowered):
+            return row, list(rows)
+        buffered.append(row)
+        if len(buffered) > 10:
+            break
+    raise SystemExit("No header row with a referentiecode column found in the first 10 rows.")
+
+
+def _resolve(header: list[str], overrides: dict[str, str]) -> dict:
+    lowered = [h.strip().lower() for h in header]
+    idx: dict[str, int] = {}
+    for name, aliases in HEADER_ALIASES.items():
+        want = (overrides.get(name) or "").strip().lower()
+        if want and want in lowered:
+            idx[name] = lowered.index(want)
+            continue
         for alias in aliases:
             if alias in lowered:
-                idx[field_name] = lowered.index(alias)
+                idx[name] = lowered.index(alias)
                 break
-    return idx
+    if "code" not in idx:
+        raise SystemExit(f"No referentiecode column. Headers: {header}. Use --col-code.")
+    # Official layout: choose columns sit before "Inactief", drop columns after it.
+    inactief = lowered.index("inactief") if "inactief" in lowered else None
+    choose: dict[str, int] = {}
+    drop: dict[str, int] = {}
+    gbned: dict[str, int] = {}
+    for i, h in enumerate(lowered):
+        if not h or i == idx["code"]:
+            continue
+        if inactief is not None:
+            if i < inactief and h in CHOOSE_COLUMNS:
+                choose["uitgebr" if h == "uitgebreid" else h] = i
+            elif i > inactief and h not in HEADER_ALIASES["desc"]:
+                drop[h] = i
+        elif h in GBNED_ENTITY_COLUMNS:
+            gbned["sv" if h == "svc" else h] = i
+    return {"idx": idx, "choose": choose, "drop": drop, "gbned": gbned, "official": inactief is not None}
 
 
-def _row_to_account(row: list[str], idx: dict[str, int]) -> RgsAccount | None:
+def _truthy(v: str) -> bool:
+    return v.strip().lower() in {"1", "j", "ja", "x", "true", "y"}
+
+
+def _row_to_account(row: list[str], res: dict) -> RgsAccount | None:
+    idx = res["idx"]
+
     def get(name: str) -> str:
         i = idx.get(name)
-        if i is None or i >= len(row):
-            return ""
-        return (row[i] or "").strip()
+        return row[i].strip() if i is not None and i < len(row) else ""
+
+    def cell(i: int) -> str:
+        return row[i].strip() if i < len(row) else ""
 
     code = get("code")
-    if not code:
+    # The official workbook holds a few irregular codes (`BLimBanRbaBg10`,
+    # `BIvaAIk`, `BproOnpPrp`); accept any B/W token rather than a strict
+    # Xxx grammar, so no real code is silently dropped.
+    if not code or not re.fullmatch(r"[BW][A-Za-z0-9]*", code):
         return None
-    return RgsAccount(
-        code=code, desc=get("desc"), nummer=get("nummer"), nivo=get("nivo"),
-        dc=get("dc"), omslag=get("omslag"), branche=get("branche"), status=get("status"),
-        entities={k: get(k) for k in ("zzp", "ez", "bv", "sv")},
+    status = get("inactief").strip().lower()
+    inactive = _truthy(status) or any(w in status for w in ("inactief", "vervallen", "expired"))
+    acc = RgsAccount(
+        code=code, desc=get("desc"), desc_short=get("desc_short"), nummer=get("nummer"),
+        nivo=get("nivo"), dc=get("dc").upper(), omslag=get("omslag"), sortering=get("sortering"),
+        inactive=inactive,
+        choose={k: _truthy(cell(i)) for k, i in res["choose"].items()},
+        drop={k: _truthy(cell(i)) for k, i in res["drop"].items()},
+        gbned={k: cell(i).upper() for k, i in res["gbned"].items()},
     )
+    if not acc.nivo and acc.code:
+        acc.nivo = str(1 + (len(acc.code) - 1) // 3)
+    return acc
 
 
-def _load_csv(path: str, overrides: dict[str, str]) -> dict[str, RgsAccount]:
+def load_csv(path: str, overrides: dict[str, str]) -> dict[str, RgsAccount]:
     with open(path, newline="", encoding="utf-8-sig") as fh:
         sample = fh.read(4096)
         fh.seek(0)
         delim = ";" if sample.count(";") >= sample.count(",") else ","
-        reader = csv.reader(fh, delimiter=delim)
-        rows = list(reader)
-    if not rows:
-        return {}
-    idx = _resolve_headers(rows[0], overrides)
-    if "code" not in idx:
-        raise SystemExit(f"Could not find a referentiecode column in {path}. "
-                         f"Headers seen: {rows[0]}. Pass --col-code to set it.")
+        if sample.count("\t") > max(sample.count(";"), sample.count(",")):
+            delim = "\t"
+        rows = list(csv.reader(fh, delimiter=delim))
+    header, body = _find_header(iter(rows))
+    res = _resolve(header, overrides)
     out: dict[str, RgsAccount] = {}
-    for row in rows[1:]:
-        acc = _row_to_account(row, idx)
+    for row in body:
+        acc = _row_to_account(row, res)
         if acc:
             out[acc.code] = acc
     return out
 
 
-def _load_xlsx(path: str, overrides: dict[str, str], sheet: str | None) -> dict[str, RgsAccount]:
-    try:
-        from openpyxl import load_workbook  # type: ignore[import-not-found,import-untyped]
-    except ImportError:
-        raise SystemExit("Reading .xlsx needs openpyxl (`pip install openpyxl`), or export "
-                         "the RGS master to CSV and pass that instead.") from None
-    wb = load_workbook(path, read_only=True, data_only=True)
-    ws = wb[sheet] if sheet else wb.active
-    if ws is None:
-        raise SystemExit(f"Could not open worksheet "
-                         f"{repr(sheet) if sheet else '(default/active)'} in {path}. "
-                         f"Pass --sheet with a valid tab name.")
-    rows_iter = ws.iter_rows(values_only=True)
-    try:
-        header = [str(c) if c is not None else "" for c in next(rows_iter)]
-    except StopIteration:
-        return {}
-    idx = _resolve_headers(header, overrides)
-    if "code" not in idx:
-        raise SystemExit(f"No referentiecode column in sheet '{ws.title}'. Headers: {header}. "
-                         f"Try --sheet or --col-code.")
+def load_xlsx(path: str, overrides: dict[str, str], sheet: str | None) -> tuple[str, dict[str, RgsAccount]]:
+    name, rows = read_xlsx_rows(path, sheet)
+    header, body = _find_header(rows)
+    res = _resolve(header, overrides)
     out: dict[str, RgsAccount] = {}
-    for raw in rows_iter:
-        row = [str(c) if c is not None else "" for c in raw]
-        acc = _row_to_account(row, idx)
+    for row in body:
+        acc = _row_to_account(row, res)
         if acc:
             out[acc.code] = acc
-    return out
+    return name, out
 
 
-def load_rgs(path: str | None, overrides: dict[str, str], sheet: str | None) -> tuple[dict[str, RgsAccount], bool]:
-    """Return (accounts_by_code, is_seed)."""
+def cached_workbook() -> Path | None:
+    for version in ("3.8", "3.9a"):
+        p = CACHE_DIR / f"RGS-{version}.xlsx"
+        if p.is_file():
+            return p
+    return None
+
+
+def load_rgs(path: str | None, overrides: dict[str, str], sheet: str | None) -> tuple[dict[str, RgsAccount], str]:
+    """Return (accounts_by_code, source_label)."""
     if not path:
-        return _load_seed(), True
+        cached = cached_workbook()
+        if cached:
+            path = str(cached)
+        else:
+            return load_seed(), "seed"
     if path.lower().endswith((".xlsx", ".xlsm")):
-        return _load_xlsx(path, overrides, sheet), False
-    return _load_csv(path, overrides), False
+        name, db = load_xlsx(path, overrides, sheet)
+        return db, f"{path} [{name}]"
+    return load_csv(path, overrides), path
 
 
-# --- Operations ------------------------------------------------------------------------
-def op_validate(db: dict[str, RgsAccount], code: str) -> int:
+def fetch(version: str) -> Path:
+    url = OFFICIAL_URLS.get(version)
+    if not url:
+        raise SystemExit(f"Unknown version {version!r}; known: {', '.join(OFFICIAL_URLS)}")
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    dest = CACHE_DIR / f"RGS-{version}.xlsx"
+    req = urllib.request.Request(url, headers={"User-Agent": "rgs-skill lookup/2.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp, open(dest, "wb") as fh:
+            fh.write(resp.read())
+    except Exception as exc:  # noqa: BLE001 - report the URL, whatever failed
+        raise SystemExit(f"Download failed for {url}: {exc}") from exc
+    if not zipfile.is_zipfile(dest):
+        dest.unlink(missing_ok=True)
+        raise SystemExit(f"{url} did not return an .xlsx file; check the Kennisbank at https://www.referentiegrootboekschema.nl/kbase")
+    return dest
+
+
+# --- entity filtering ---------------------------------------------------------
+def applies(acc: RgsAccount, entity: str | None, basis: bool, keep: set[str]) -> bool:
+    if acc.inactive:
+        return False
+    if not entity and not acc.choose and not acc.gbned:
+        return True
+    if acc.gbned:  # GBNED layout: J / J+ / P mean applicable
+        if not entity:
+            return True
+        e = entity.lower()
+        if e not in acc.gbned:
+            raise SystemExit(f"Unknown entity {entity!r}; choose from {ENTITY_HELP}")
+        return acc.gbned[e].upper() in {"J", "J+", "P"}
+    if not acc.choose and not acc.drop:
+        return True
+    e = (entity or "").lower()
+    if e in ("", "bv", "sv"):
+        selected = acc.choose.get("basis", False) if basis else acc.choose.get("uitgebr", False)
+    elif e == "ez":
+        selected = acc.choose.get("ez/vof", False)
+    elif e == "zzp":
+        selected = acc.choose.get("zzp", False)
+    elif e == "woco":
+        selected = acc.choose.get("woco", False)
+    elif e == "zorg":
+        selected = acc.choose.get("zorg", False)
+    else:
+        raise SystemExit(f"Unknown entity {entity!r}; choose from {ENTITY_HELP}")
+    if not selected:
+        return False
+    if not e:
+        return True
+    drops = set(SECTOR_DROPS) - keep
+    if e == "woco":
+        drops.discard("woco")
+    if e == "zorg":
+        drops.discard("zorg")
+    if e == "bv":
+        drops.add("ez/vof")
+    elif e in ("ez", "zzp"):
+        drops.add("bv")
+    elif e == "sv":
+        drops |= {"ez/vof", "bv"}
+        drops.discard("ozw-coop-sticht-fwo")
+    return not any(acc.drop.get(d, False) for d in drops)
+
+
+# --- operations ---------------------------------------------------------------
+def op_validate(db: dict[str, RgsAccount], code: str, as_json: bool) -> int:
     acc = db.get(code)
     if not acc:
-        print(f"✗ {code}: NOT FOUND in this dataset.")
+        print(json.dumps({"code": code, "found": False}) if as_json else f"NOT FOUND: {code} is not in this dataset. Do not book to it; look it up in the official workbook.")
         return 1
-    if acc.vervallen:
-        print(f"⚠ {code}: found but VERVALLEN (expired) — do not book to it.\n{acc}")
+    if acc.inactive:
+        print(json.dumps({**acc.as_dict(), "found": True, "valid": False}) if as_json else f"INACTIVE: {code} is retired.\n{acc.fmt(db)}")
         return 2
-    print(f"✓ {code}: valid.\n{acc}")
+    print(json.dumps({**acc.as_dict(), "found": True, "valid": True}) if as_json else f"VALID: {code}\n{acc.fmt(db)}")
     return 0
 
 
-def op_lookup(db: dict[str, RgsAccount], code: str) -> int:
-    acc = db.get(code)
+def op_lookup(db: dict[str, RgsAccount], code: str, as_json: bool) -> int:
+    acc = db.get(code) or next((v for k, v in db.items() if k.lower() == code.lower()), None)
     if not acc:
-        # try case-insensitive
-        for k, v in db.items():
-            if k.lower() == code.lower():
-                print(v)
-                return 0
-        print(f"✗ {code}: not found.")
+        print(json.dumps({"code": code, "found": False}) if as_json else f"NOT FOUND: {code}")
         return 1
-    print(acc)
+    print(json.dumps(acc.as_dict()) if as_json else acc.fmt(db))
     return 0
 
 
-def op_search(db: dict[str, RgsAccount], term: str, entity: str | None,
-              nivo: str | None, limit: int) -> int:
-    needle = term.lower()
+def op_children(db: dict[str, RgsAccount], code: str, as_json: bool) -> int:
+    kids = sorted((a for a in db.values() if a.parent == code), key=lambda a: a.code)
+    if not kids:
+        print(json.dumps([]) if as_json else f"No children of {code} in this dataset.")
+        return 1
+    if as_json:
+        print(json.dumps([a.as_dict() for a in kids]))
+    else:
+        for a in kids:
+            print(a.fmt(db))
+    return 0
+
+
+def op_search(db: dict[str, RgsAccount], term: str, entity: str | None, nivo: str | None,
+              basis: bool, keep: set[str], limit: int, as_json: bool) -> int:
+    needles = [t.lower() for t in term.split()]
     hits = []
     for acc in db.values():
-        if needle not in acc.desc.lower() and needle not in acc.code.lower():
+        hay = f"{acc.desc} {acc.desc_short} {acc.code}".lower()
+        if not all(n in hay for n in needles):
             continue
         if nivo and acc.nivo and acc.nivo != nivo:
             continue
-        if entity and acc.entities and not acc.applies_to(entity):
-            continue
-        if acc.vervallen:
+        if not applies(acc, entity, basis, keep):
             continue
         hits.append(acc)
     hits.sort(key=lambda a: (a.nivo or "9", a.code))
     if not hits:
-        print(f"No matches for '{term}'"
-              + (f" (entity={entity})" if entity else "")
-              + (f" (nivo={nivo})" if nivo else "") + ".")
+        print(json.dumps([]) if as_json else f"No matches for {term!r}" + (f" (entity={entity})" if entity else "") + (f" (nivo={nivo})" if nivo else "") + ".")
         return 1
-    for acc in hits[:limit]:
-        print(acc)
-        print()
-    if len(hits) > limit:
-        print(f"… {len(hits) - limit} more (raise --limit).")
+    if as_json:
+        print(json.dumps([a.as_dict() for a in hits[:limit]]))
+    else:
+        for acc in hits[:limit]:
+            print(acc.fmt(db))
+            print()
+        if len(hits) > limit:
+            print(f"... {len(hits) - limit} more; raise --limit.")
     return 0
 
 
 def main(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(description="Look up / validate RGS codes.")
-    p.add_argument("--file", help="Official RGS master (.xlsx) or a CSV/TSV export. "
-                                   "Omit to use the small built-in seed.")
-    p.add_argument("--sheet", help="Worksheet name for .xlsx (e.g. an MKB or Totaal tab).")
-    p.add_argument("--validate", metavar="CODE", help="Check a referentiecode exists / is active.")
-    p.add_argument("--lookup", metavar="CODE", help="Show one account's details.")
-    p.add_argument("--search", metavar="TERM", help="Fuzzy search by description or code.")
-    p.add_argument("--entity", choices=["zzp", "ez", "bv", "sv", "ZZP", "EZ", "BV", "SV"],
-                   help="Restrict search to codes flagged for this entity type.")
-    p.add_argument("--nivo", help="Restrict search to a hierarchy level (4 = bookable).")
-    p.add_argument("--limit", type=int, default=25, help="Max search results (default 25).")
-    for f in ("code", "desc", "nummer", "nivo", "dc", "omslag"):
-        p.add_argument(f"--col-{f}", help=f"Override the '{f}' column header.")
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--file", help="Official workbook (.xlsx) or a CSV/TSV export. Default: the cached workbook, else the seed.")
+    p.add_argument("--sheet", help="Worksheet for .xlsx (default: the sheet whose name starts with 'Totaal').")
+    p.add_argument("--list-sheets", action="store_true", help="Print the sheet names of --file and exit.")
+    p.add_argument("--fetch", metavar="VERSION", help=f"Download the official workbook into {CACHE_DIR} ({', '.join(OFFICIAL_URLS)}).")
+    p.add_argument("--validate", metavar="CODE", help="Exit 0 if CODE exists and is active, 1 if unknown, 2 if inactive.")
+    p.add_argument("--lookup", metavar="CODE", help="Show one code.")
+    p.add_argument("--children", metavar="CODE", help="List the codes one level below CODE.")
+    p.add_argument("--search", metavar="TERMS", help="All terms must occur in the description or code.")
+    p.add_argument("--entity", help=f"Filter to codes applicable to an entity: {ENTITY_HELP}.")
+    p.add_argument("--uitgebreid", action="store_true", help="Select from the Uitgebreid column instead of Basis (official layout).")
+    p.add_argument("--keep", default="", help="Comma-separated sector drop columns to keep despite --entity (e.g. agro,wkr).")
+    p.add_argument("--nivo", help="Restrict to a level (4 = grootboekrekening).")
+    p.add_argument("--limit", type=int, default=25)
+    p.add_argument("--json", action="store_true", help="Machine-readable output.")
+    for f in ("code", "desc", "nummer", "nivo", "dc", "omslag", "inactief"):
+        p.add_argument(f"--col-{f}", help=f"Override the header used for '{f}'.")
     args = p.parse_args(argv)
 
-    overrides = {f: getattr(args, f"col_{f}") for f in ("code", "desc", "nummer", "nivo", "dc", "omslag")}
-    db, is_seed = load_rgs(args.file, overrides, args.sheet)
-    if is_seed:
-        print("(i) Using built-in SEED dataset (~20 common BV codes). Not authoritative - "
-              "download the official RGS 3.8 Excel and pass --file for real work.\n",
-              file=sys.stderr)
+    if args.fetch:
+        dest = fetch(args.fetch)
+        print(f"Saved {dest} ({dest.stat().st_size} bytes) from {OFFICIAL_URLS[args.fetch]}", file=sys.stderr)
+        if not (args.validate or args.lookup or args.search or args.children):
+            return 0
+        if not args.file:
+            args.file = str(dest)
+    if args.list_sheets:
+        if not args.file:
+            return _usage(p, "--list-sheets needs --file")
+        print("\n".join(xlsx_sheet_names(args.file)))
+        return 0
+
+    overrides = {f: getattr(args, f"col_{f}") for f in ("code", "desc", "nummer", "nivo", "dc", "omslag", "inactief")}
+    db, source = load_rgs(args.file, overrides, args.sheet)
+    if source == "seed":
+        print("(i) Using the built-in seed (a few dozen codes verified against RGS 3.8). Not the standard: run --fetch 3.8 for real work.", file=sys.stderr)
     else:
-        print(f"Loaded {len(db)} RGS codes from {args.file}.\n", file=sys.stderr)
+        print(f"Loaded {len(db)} codes from {source}.", file=sys.stderr)
+    keep = {k.strip().lower() for k in args.keep.split(",") if k.strip()}
+    basis = not args.uitgebreid
 
     if args.validate:
-        return op_validate(db, args.validate)
+        return op_validate(db, args.validate, args.json)
     if args.lookup:
-        return op_lookup(db, args.lookup)
+        return op_lookup(db, args.lookup, args.json)
+    if args.children:
+        return op_children(db, args.children, args.json)
     if args.search:
-        return op_search(db, args.search, args.entity, args.nivo, args.limit)
+        return op_search(db, args.search, args.entity, args.nivo, basis, keep, args.limit, args.json)
     p.print_help()
     return 0
+
+
+def _usage(p: argparse.ArgumentParser, msg: str) -> int:
+    print(f"error: {msg}", file=sys.stderr)
+    p.print_usage(sys.stderr)
+    return 3
 
 
 if __name__ == "__main__":

@@ -1,0 +1,24 @@
+// markdownlint configuration. Rules this repository does not follow are
+// disabled here with the reason, so a hit is a real defect.
+{
+  "globs": ["**/*.md"],
+  "ignores": [".venv", "node_modules"],
+  "config": {
+    // Citation markers `[S7]` resolve to the Sources list at the foot of each
+    // reference; tests/check_skill.py enforces that both ways. markdownlint
+    // reads them as shortcut reference links.
+    "MD052": false,
+    // Line length: tables and source URLs exceed any ceiling.
+    "MD013": false,
+    // Bare URLs are deliberate in Sources lists (angle brackets are used
+    // where a URL stands alone; a query string in a table cell is not).
+    "MD034": false,
+    // Tables are written unpadded.
+    "MD060": false,
+    // Duplicate headings only matter under the same parent.
+    "MD024": { "siblings_only": true },
+    // The PR template opens with an HTML comment for contributors, not a
+    // heading; the GitHub form renders it, the linter would not.
+    "MD041": false
+  }
+}

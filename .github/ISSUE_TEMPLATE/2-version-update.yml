@@ -27,7 +27,7 @@ body:
     id: changes
     attributes:
       label: What changed / what to update
-      description: Which files/claims are affected (SKILL.md version line, reporting-compliance.md NT mapping, sources.md rows, …).
+      description: Which files/claims are affected (SKILL.md pin, versions-governance.md tables, reporting-compliance.md NT mapping, the `rgs_version` front matter, …).
     validations:
       required: true
   - type: checkboxes

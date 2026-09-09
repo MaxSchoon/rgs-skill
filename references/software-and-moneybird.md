@@ -1,140 +1,123 @@
-# RGS in software & in practice — focus on MoneyBird
+---
+reference_id: software-and-moneybird
+verified_on: 2026-09-09
+rgs_version: "MoneyBird API: RGS 3.5; AFAS Profit 7: RGS 3.7; standard: 3.8"
+---
 
-> The operational reference: how RGS lives in MoneyBird's API, the setup workflow, the
-> pitfalls that actually bite, and machine-readable RGS datasets. MoneyBird is one of the
-> most widely used Dutch MKB packages, so it's covered in depth here; the same patterns
-> apply to the other packages in the table below.
+# RGS in bookkeeping software, with MoneyBird's API in detail
 
-## MoneyBird + RGS — the facts that matter
+**Load this when:** code or a person books through a package (MoneyBird first,
+others by their RGS Ready status), an integration must create or read ledger
+accounts with RGS codes, or a chart is being set up or checked for complete
+coupling.
 
-In MoneyBird, **grootboekrekeningen are called *categorieën* (categories), and since the
-July 2024 update every category is linked to an RGS 3.5 code** — the live constraint for
-anyone booking a Dutch BV on MoneyBird.
+**Do not load this when:** the question is the meaning of a code or the
+mapping rules themselves (`references/structure-and-codes.md`), or which
+subset an entity uses (`references/scope-filters-entities.md`).
 
-In the product:
-- **Standaard verzamelingen** — adding a category from MoneyBird's standard collections
-  auto-attaches the correct RGS code. **This is the recommended path** — no manual lookup,
-  fewer coding errors. For a clean BV, build the chart from standard collections.
-- **Losse categorieën** — for a custom category you choose the RGS code yourself;
-  MoneyBird shows a **top-5 "slimme suggesties"** based on the name and its position on
-  the P&V/balance.
-- **Overstappen** — legacy categories without an RGS 3.5 code show as "verouderd";
-  Instellingen > Categorieën migrates them with smart suggestions.
-- **RGS Brugstaat export** — for category exports (e.g. a CBS questionnaire). **Only
-  available once *every* category has an RGS 3.5 code.**
+## Contents
 
-### API — `ledger_accounts`
+- [MoneyBird: product behaviour](#moneybird-product-behaviour)
+- [MoneyBird: the ledger-accounts API](#moneybird-the-ledger-accounts-api)
+- [Other packages](#other-packages)
+- [Setup and completeness](#setup-and-completeness)
+- [Datasets for validation](#datasets-for-validation)
+- [Sources](#sources)
 
-Authoritative ref: `https://developer.moneybird.com/api/ledger-accounts` (RGS **3.5**).
+## MoneyBird: product behaviour
 
-- **An `rgs_code` field exists** — e.g. `"WMfoBelMfo"`, described as an "RGS version 3.5
-  code".
-- **Body placement is unusual:** on **POST** and **PATCH**, `rgs_code` is a **top-level
-  body property — a sibling of the `ledger_account` object, NOT inside it**:
+In MoneyBird a ledger account is a *categorie*, and every category is linked
+to an RGS 3.5 code. Categories added from a **standaard verzameling** get the
+right code automatically; a **losse categorie** takes a code you choose, with
+a top-five of smart suggestions based on the name and its place on the balans
+or resultatenrekening. Legacy categories without a 3.5 code show as
+*verouderd* under Instellingen > Categorieën. The **RGS Brugstaat** export
+(the blog names a CBS questionnaire as a use) is only available when every
+category in the administration has an RGS 3.5 code [S1].
+
+## MoneyBird: the ledger-accounts API
+
+From the developer documentation, viewed 2026-09-09 [S2]:
+
+- **`rgs_code` is required on create** and described as an "Existing RGS
+  version 3.5 code, e.g. 'WMfoBelMfo'". It is a **top-level body property,
+  a sibling of the `ledger_account` object**, on both POST and PATCH:
+
   ```json
   { "rgs_code": "WMfoBelMfo", "ledger_account": { "name": "new name" } }
   ```
-- **On POST, `rgs_code` is `string · required`.** Since July 2024, **creating a ledger
-  account without a valid RGS 3.5 code is blocked** — a missing/invalid code can return
-  **404** (unknown code) or **400/422** (bad payload).
-- In **responses**, the RGS link is surfaced via a **`taxonomy_item`** object on each
-  ledger account (not a raw `rgs_code` string). To read/validate existing links, inspect
-  `taxonomy_item` on GET/list responses.
-- `account_type` enum (separate from RGS): `non_current_assets, current_assets, equity,
-  provisions, non_current_liabilities, current_liabilities, revenue, direct_costs,
-  expenses, other_income_expenses`. Parent/child trees need matching `account_type`.
-- A **Rapportage (Reporting) API** (2025) can pull P&V/balance/cashflow directly — useful
-  for RGS-aligned reporting without manual exports.
 
-> **Integration action item.** If any code path *creates* ledger accounts via POST, it
-> must pass a valid RGS 3.5 `rgs_code` as a **top-level** field or the call fails. A PATCH
-> of only name/type doesn't require it, but you can pass `rgs_code` to (re)link. Get the
-> top-level placement and the 3.5 validity right and most MoneyBird+RGS integration bugs
-> disappear.
+- The `ledger_account` object carries `name`, `account_type` and
+  `account_id`. `account_type` is one of `non_current_assets`,
+  `current_assets`, `equity`, `provisions`, `non_current_liabilities`,
+  `current_liabilities`, `revenue`, `direct_costs`, `expenses`,
+  `other_income_expenses`.
+- Responses expose the link as a `taxonomy_item` object with
+  `taxonomy_version` (`"3.5"`), `code`, `name`, `name_english` and
+  `reference` (the referentienummer, for example `WBedAlkOal` /
+  `4215010`, `BVorDebHad` / `1101010`, `BSchBepBtwAfo` / `1205010.13`).
+  The examples show level-5 codes in use for BTW sub-accounts.
+- Documented status codes: POST 201, 400, 404, 422; PATCH 200, 404, 422.
+  Treat 404 on a syntactically valid code as "unknown in 3.5" and 422 as a
+  payload problem; the documentation does not spell out which is which.
+- GET and list return `taxonomy_item`; there is no endpoint that lists all
+  valid codes, so validate against a 3.5-filtered dataset before posting.
+- DELETE deactivates first and deletes only if that fails; it always returns
+  204.
 
-> **Version mismatch is the headline caveat:** MoneyBird's API is pinned to **RGS 3.5**
-> while the live standard is **3.8**. Any code you set via the API must be **valid in
-> 3.5**. Because the RGS core is stable since 3.0, the common codes (`WBedAlkOal`,
-> `BLimKasKas`, etc.) are present in 3.5 — but validate against 3.5, not 3.8, before POSTing.
+Because the RGS core is unchanged since 3.0, the everyday codes present in 3.8
+are present in 3.5; codes added after 3.5 are not
+(`references/versions-governance.md`).
 
-## Other Dutch packages — the universal pattern
+## Other packages
 
-Every package keeps its **own chart** and maps each account to an **RGS referentiecode**
-(a koppeltabel); the code links onward to SBR for filings.
+RGS Ready is the market yardstick (eight functions; GBNED tests and publishes
+a report per vendor) [S3]. The RGS Ready table on softwarepakketten.nl lists,
+among others, AFAS Profit, Exact Online, Twinfield (via two partners), SnelStart
+Accountant, Yuki (extra accounts get the code automatically; the standard
+chart is always coupled), Minox, iMUIS Online, CASH, Informer, 7x24.nl,
+Aareon Tobias, Ctac, Cegeka-dsa, ITRIS, Metacom, Stip.t, and Microsoft
+Business Central via De Saak (ships RGS MKB as the standard chart). MoneyBird
+is not in that table [S4]. Version pins differ per vendor: AFAS Profit 7
+supports RGS 3.7 and records an RGS-referentiecode plus an optional
+RGS-extensie per account; its 3.6 to 3.7 upgrade emptied seven removed codes
+(`BVrdOweGet`, `WPerPenDpe`, `WPerPenDvb`, `WPerPenDvl`, `WPerPenVpv`,
+`WPerPenVvb`, `WPerPenVvl`) [S5]. Always read the version the package states
+and validate against that workbook.
 
-| Package | RGS version | How assigned | Notable |
-|---|---|---|---|
-| **MoneyBird** | 3.5, lvl 4 | Auto (standard collections) + top-5 suggestions; `rgs_code` required on API create | Categories ≈ ledgers; RGS Brugstaat needs full coverage |
-| **Exact Online** | via Reporting Schemes (1.1→3.2) | "RGS suggesties" (~3/acct) | Queryable via Invantive SQL |
-| **Twinfield** | 3.2+ | Reporting structure pre-linked at environment level | Auto-pushed to sub-administrations |
-| **AFAS Profit** | up to 3.7 | Per account: RGS-referentie + optional extensie | Combined code+extension field |
-| **e-Boekhouden.nl** | detailniveau 3 or 4 | Type-ahead per account | Choose detail level |
-| **SnelStart** | 3.1, lvl 4 | "Vul met suggesties" (25 at a time) | Mapping stored per account, reused across admins |
-| **Yuki** | standard scheme | Pre-coded; extra accounts auto-coded | Near-zero manual mapping |
-| **Asperion** | up to lvl 5 | Auto-match + conversion templates | Hierarchical parent-branch guard |
+## Setup and completeness
 
-## Practical setup workflow
+1. Check the package's RGS Ready report and stated version [S3] [S4].
+2. Choose the route: use the codes as the chart (a new entity), let the
+   package auto-couple, or map an existing chart by hand from the package's
+   suggestions.
+3. Map at niveau 4; handle 1:n by splitting, m:1 by extension or a change
+   request, 1:x by a change request, and omslag by coupling both codes [S6].
+4. Run the package's unmapped-accounts control (RGS Ready function 7) until
+   it is empty; MoneyBird withholds the Brugstaat export until then [S1] [S3].
+5. Couple every new account on creation; do not rewrite booked periods to
+   repair a miscoding.
 
-1. **Check readiness** — package on softwarepakketten.nl, status on rgsready.nl.
-2. **Choose a route** — (a) software auto-couples; (b) manual map; (c) partial auto-map
-   you complete; (d) **use RGS codes directly as your chart** — ideal for a new BV.
-3. **Pick the level** — map at **niveau 4** (10-char code like `BLimKasKas`). Don't map
-   to level 2/3 (loses specificity) or level 5 (mutaties mix with accounts).
-4. **Map (koppeltabel)** — attach a referentiecode per account; use auto-suggestions,
-   then **review**.
-5. **Handle edge cases** — splits, extensies, omslagcodes, "overige" (see Pitfalls).
-6. **Validate completeness** — run the mapping-control report; **every** account must be
-   coupled (MoneyBird blocks the Brugstaat until then).
-7. **Propagate & maintain** — couple new accounts immediately; stay on the latest
-   operational version your software supports.
-8. **Export / report** — XAF with RGS codes, or RGS-aware exports → SBR filings.
+## Datasets for validation
 
-## Common pitfalls (these actually bite)
+- **Official workbook** (`RGS 3.8-def.xlsx`), authoritative;
+  `scripts/rgs_lookup.py --fetch 3.8` downloads it.
+- **RGS MKB** (GBNED): a niveau-4 subset with 5-digit decimal numbers and
+  per-entity charts for ZZP, EZ/VOF, BV micro and klein, and small
+  stichtingen and verenigingen, obtainable from boekhoudplaza.nl [S7].
+- **Fiba RGS Snelzoeker**: a browser tool with an offline database, version
+  selector and fuzzy search; no API [S8].
+- **Vegter/RGS-API**: an MPL-2.0 REST API over RGS 3.3 with the GBNED MKB
+  filters, last pushed 2021-04-19; code reference only [S9].
 
-1. **1:n ambiguity** — your account fits multiple RGS codes → split it going forward.
-2. **m:1 too-detailed** — you split finer than RGS → add an extensie (or accept the
-   coarser code). Extensions usually need manual coupling and break SBR comparability.
-3. **No matching code** — submit a request to add one; don't force a wrong code.
-4. **Omslagcode** — accounts that can go debit *or* credit must couple **both** sides or
-   balances flip into the wrong rubriek.
-5. **"Overige …"** — the single most error-prone term; disambiguate by the parent level.
-6. **Wrong level** — map at niveau 4, not 2/3/5.
-7. **Incomplete coupling** — the classic error → reporting discrepancies. MoneyBird
-   enforces this (Brugstaat blocked; API blocks uncoded ledger creation).
-8. **New accounts uncoupled / version drift** — couple immediately; mind the 3.5-vs-3.8
-   API mismatch.
-9. **Own sub-accounts in a decimal scheme** — reserve a trailing digit (use 6-digit
-   numbers) so you can add sub-accounts without breaking the standard numbering.
+## Sources
 
-## RGS Ready (the 8-point yardstick)
-
-A GBNED keurmerk (norms set with the former RGS Taskforce); results on rgsready.nl /
-softwarepakketten.nl. The 8 functions: (1) RGS scheme available in-software; (2) auto
-updates; (3) manual coupling; (4) auto-coupling proposal; (5) auto-propagation across
-administrations; (6) RGS code+version in the XAF at mutation level; (7) overview-by-RGS-
-code with validation of unmapped accounts; (8) RGS codes passed through the package's
-API/koppelvlak. **"RGS Ready voor accountancy"** = all 8; **"voor ondernemers"** drops #4
-and #5. Certified packages include Minox (first), SnelStart, Exact Online, Twinfield,
-Yuki, AFAS, e-Boekhouden, Asperion, CASH, and ~20 more. *(MoneyBird clearly supports RGS
-3.5 but a dedicated MoneyBird RGS Ready test report wasn't confirmed — treat as
-"supports RGS" rather than certified; verify on rgsready.nl if it matters.)*
-
-## Machine-readable RGS datasets (for the bundled lookup script)
-
-- **Official — referentiegrootboekschema.nl Kennisbank "Download RGS"** — the
-  authoritative Excel master (current **3.8**). Best source of truth.
-- **GBNED / boekhoudplaza RGS Dashboard** (`boekhoudplaza.nl/cmm/rgs/rgs_dashboard.php`)
-  — browsable codes, decimal scheme, filters, RGS Audittrail of per-version changes.
-- **RGS MKB schema (GBNED)** — curated subset to niveau 4, available as **CSV/Excel and
-  JSON** on request (`rgs@gbned.nl`). Fields incl. Refcode, Omslagcode, Refnr,
-  Branchecode, Status, Versie, RekNr, ZZP/EZ/BV/SVC flags. The most practical
-  machine-readable dataset for a custom validator.
-- **Vegter/RGS-API** (GitHub, MPL-2.0) — Node/TS REST API over RGS, but **v3.3, last push
-  2021 — stale**; use as code reference only.
-- **Fiba RGS Snelzoeker** (`fiba.nl/rgs_snelzoeker`) — fast fuzzy lookup UI, version
-  selector up to 3.8. Manual lookups; not an API.
-- **For MoneyBird:** validate a code by attempting to set `rgs_code` (an invalid 3.5 code
-  → 404); read existing links via `taxonomy_item`. No public "list valid codes" endpoint.
-
-See `scripts/rgs_lookup.py` for a self-contained validator/lookup built on the official
-Excel master (with a 3.5-filter option for MoneyBird compatibility).
+- **[S1]** Voeg gemakkelijk categorieën toe met het RGS, 2024-07-25. Moneybird. Available from: <https://www.moneybird.nl/blog/categorieen-toevoegen-met-het-rgs/> [viewed 2026-09-09]. Tier 3.
+- **[S2]** Moneybird API Documentation, Ledger accounts (create, update, get, list, delete). Moneybird. Available from: <https://developer.moneybird.com/api/ledger-accounts> [viewed 2026-09-09]. Tier 3.
+- **[S3]** RGS Ready boekhoudsoftware (normenkader versie 2019-04). Onderzoeksbureau GBNED, softwarepakketten.nl. Available from: <https://www.softwarepakketten.nl/pag_reg/81/RGS_Ready.htm> [viewed 2026-09-09]. Tier 2.
+- **[S4]** RGS functionaliteit in boekhoudsoftware (RGS Ready table with test reports). Onderzoeksbureau GBNED, softwarepakketten.nl. Available from: <https://www.softwarepakketten.nl/cmm/swp/raadplegen_eigenschappen_kort.php?bronw=1&slt=72> [viewed 2026-09-09]. Tier 2.
+- **[S5]** Referentie GrootboekSchema (RGS) inrichten (Profit 7). AFAS Help Center. Available from: <https://help.afas.nl/help/NL/SE/Fin_Config_Ledger_RGS.htm> [viewed 2026-09-09]. Tier 3.
+- **[S6]** Aandachtspunten bij koppelen grootboekrekeningschema. Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/over-rgs/aandachtspunten-bij-koppelen-grootboekrekeningschema> [viewed 2026-09-09]. Tier 1.
+- **[S7]** Wat is RGS MKB. Onderzoeksbureau GBNED, boekhoudplaza.nl. Available from: <https://www.boekhoudplaza.nl/pag_epa/137/RGS_MKB.php> [viewed 2026-09-09]. Tier 2.
+- **[S8]** RGS Snelzoeker. Fiba.nl. Available from: <https://fiba.nl/rgs_snelzoeker> [viewed 2026-09-09]. Tier 3.
+- **[S9]** Vegter/RGS-API (GitHub repository; last push 2021-04-19; MPL-2.0). Available from: <https://github.com/Vegter/RGS-API> [viewed 2026-09-09]. Tier 3.
