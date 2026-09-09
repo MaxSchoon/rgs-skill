@@ -180,7 +180,10 @@ class CsvAndSeedTests(unittest.TestCase):
             db = rgs_lookup.load_csv(str(p), {})
             self.assertEqual(db["BVorDebHad"].gbned["bv"], "J")
             self.assertTrue(rgs_lookup.applies(db["BEivGokGea"], "bv", True, set()))
+            self.assertTrue(rgs_lookup.applies(db["BEivGokGea"], "BV", True, set()))
             self.assertFalse(rgs_lookup.applies(db["BEivGokGea"], "zzp", True, set()))
+            with self.assertRaises(SystemExit):
+                rgs_lookup.applies(db["BEivGokGea"], "nv", True, set())
 
     def test_seed_is_used_without_cache(self) -> None:
         old = rgs_lookup.CACHE_DIR
@@ -198,6 +201,23 @@ class CsvAndSeedTests(unittest.TestCase):
     def test_seed_codes_are_well_formed(self) -> None:
         for code, _, nivo, _, _ in rgs_lookup._SEED_ROWS:
             self.assertEqual(int(nivo), 1 + (len(code) - 1) // 3, code)
+
+    def test_fetch_then_lookup_uses_downloaded_workbook(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp) / "RGS-3.9a.xlsx"
+            build_xlsx(dest)
+            old_fetch = rgs_lookup.fetch
+            old_cache = rgs_lookup.CACHE_DIR
+            rgs_lookup.CACHE_DIR = Path(tmp) / "cache"
+            rgs_lookup.CACHE_DIR.mkdir()
+            rgs_lookup.fetch = lambda _version: dest
+            try:
+                code, out = run(["--fetch", "3.9a", "--lookup", "BIvaKouCuh"])
+            finally:
+                rgs_lookup.fetch = old_fetch
+                rgs_lookup.CACHE_DIR = old_cache
+        self.assertEqual(code, 0)
+        self.assertIn("BIvaKouCuh", out)
 
 
 if __name__ == "__main__":

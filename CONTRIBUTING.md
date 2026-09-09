@@ -99,7 +99,7 @@ python3 tests/check_skill.py
 npx --yes markdownlint-cli2@0.18.1
 python3 -m py_compile scripts/rgs_lookup.py
 python3 -m unittest discover -s tests -p 'test_*.py' -v
-python3 scripts/rgs_lookup.py --validate WBedKanKoa      # seed smoke test
+python3 scripts/rgs_lookup.py --validate WBedKanKoa      # lookup smoke test (cache if present, else seed)
 ```
 
 Paste the output into the pull request.

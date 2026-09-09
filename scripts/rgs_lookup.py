@@ -414,7 +414,10 @@ def applies(acc: RgsAccount, entity: str | None, basis: bool, keep: set[str]) ->
     if acc.gbned:  # GBNED layout: J / J+ / P mean applicable
         if not entity:
             return True
-        return acc.gbned.get(entity, "").upper() in {"J", "J+", "P"}
+        e = entity.lower()
+        if e not in acc.gbned:
+            raise SystemExit(f"Unknown entity {entity!r}; choose from {ENTITY_HELP}")
+        return acc.gbned[e].upper() in {"J", "J+", "P"}
     if not acc.choose and not acc.drop:
         return True
     e = (entity or "").lower()
@@ -537,6 +540,8 @@ def main(argv: list[str]) -> int:
         print(f"Saved {dest} ({dest.stat().st_size} bytes) from {OFFICIAL_URLS[args.fetch]}", file=sys.stderr)
         if not (args.validate or args.lookup or args.search or args.children):
             return 0
+        if not args.file:
+            args.file = str(dest)
     if args.list_sheets:
         if not args.file:
             return _usage(p, "--list-sheets needs --file")
