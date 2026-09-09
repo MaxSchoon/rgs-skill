@@ -100,7 +100,32 @@ needs network access.
 
 ## License
 
-MIT, see [`LICENSE`](LICENSE). Third-party notices are in [`NOTICE`](NOTICE).
+Dual-licensed by content type: **Apache-2.0** for code (`scripts/`,
+`tests/`; see [`LICENSE`](LICENSE)) and **CC BY 4.0** for content
+(`SKILL.md`, `references/` and this documentation; see
+[`LICENSE-CONTENT`](LICENSE-CONTENT)).
+
+**If you redistribute or publicly share this material, or an adaptation of it**,
+attribution is a licence condition (CC BY 4.0 §3(a), Apache-2.0 §4):
+
+> RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL),
+> https://github.com/MaxSchoon/rgs-skill, licensed under CC BY 4.0.
+> [Modified. | Unmodified.]
+
+and keep the copyright, licence and warranty-disclaimer notices supplied with
+the work (`NOTICE`, `LICENSE-CONTENT`; CC BY 4.0 §3(a)(1)(A)).
+
+**If you use it** (to map a chart of accounts, validate codes, prepare a
+filing, or inform software you write yourself), you must credit it:
+
+> Uses the RGS Skill by Ontos B.V. — https://github.com/MaxSchoon/rgs-skill
+
+Exact rules per context, including never placing the credit inside submitted
+filing data, are in [`ATTRIBUTION.md`](ATTRIBUTION.md). Machine-readable terms:
+[`rsl.xml`](rsl.xml) (RSL 1.0) and [`llms.txt`](llms.txt).
+
+Previously published under MIT; see [`NOTICE`](NOTICE) for the relicensing
+history and third-party notices.
 
 ## Disclaimer
 

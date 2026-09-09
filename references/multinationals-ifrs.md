@@ -6,6 +6,8 @@ rgs_version: "3.8 definitive"
 
 # RGS for groups, IFRS, consolidation, and ESEF
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** a Dutch entity sits in an international group, someone
 wants RGS as a group chart of accounts, or the question mentions IFRS,
 consolidation, foreign subsidiaries, or ESEF.

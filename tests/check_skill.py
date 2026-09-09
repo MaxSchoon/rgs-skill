@@ -16,7 +16,11 @@ agent contract:
   4. Citation markers: every `[Sn]` in a reference body resolves to a
      `**[Sn]**` entry in its Sources list, every entry is cited, and every
      entry carries an `[viewed YYYY-MM-DD]` date and a URL.
-  5. The bundled script byte-compiles.
+  5. The licence surface is present: LICENSE (Apache-2.0), LICENSE-CONTENT
+     (CC BY 4.0), LICENSES/MIT.txt, NOTICE, ATTRIBUTION.md, rsl.xml and
+     llms.txt exist, SKILL.md's front matter points at NOTICE, and SKILL.md
+     and every reference carry the attribution the licence requires.
+  6. The bundled script byte-compiles.
 
 Run: python3 tests/check_skill.py
 Exits non-zero (with `::error::` annotations for GitHub Actions) on any
@@ -33,6 +37,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "SKILL.md"
 REFERENCES = ROOT / "references"
 SCRIPT = ROOT / "scripts" / "rgs_lookup.py"
+
+LICENSE_FILES = ("LICENSE", "LICENSE-CONTENT", "LICENSES/MIT.txt", "NOTICE",
+                 "ATTRIBUTION.md", "rsl.xml", "llms.txt")
+# The credit the licence requires (ATTRIBUTION.md § The short string).
+ATTRIBUTION_PARTS = ("Max Schoon", "Ontos B.V.", "RGS Skill", "github.com/MaxSchoon/rgs-skill")
 
 MAX_SKILL_BYTES = 32 * 1024
 MAX_SKILL_LINES = 500
@@ -277,6 +286,35 @@ def check_references() -> None:
         print(f"Reference structure and citations OK ({len(paths)} files)")
 
 
+def check_attribution() -> None:
+    """The licence surface is present and every shipped file carries the credit.
+
+    A licence obligation nobody checks quietly rots away: a reference added
+    without its header would ship without the attribution ATTRIBUTION.md
+    tells users to expect there.
+    """
+    mark = len(errors)
+    for rel in LICENSE_FILES:
+        if not (ROOT / rel).is_file():
+            fail(f"{rel} is missing")
+    if SKILL.is_file():
+        text = SKILL.read_text(encoding="utf-8")
+        fm = parse_front_matter(text) or {}
+        if fm.get("license") != "see NOTICE":
+            fail("SKILL.md front matter `license` must be `see NOTICE`")
+        for part in ATTRIBUTION_PARTS:
+            if part not in text:
+                fail(f"SKILL.md lacks the attribution part {part!r}")
+    for path in sorted(REFERENCES.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        head = text.split(LOAD_MARKS[0], 1)[0]
+        for part in ATTRIBUTION_PARTS:
+            if part not in head:
+                fail(f"{path.name}: attribution header (before the Load line) lacks {part!r}")
+    if not failures_since(mark):
+        print(f"Attribution OK ({len(LICENSE_FILES)} licence files, SKILL.md and references carry the credit)")
+
+
 def check_script() -> None:
     if not SCRIPT.is_file():
         fail("scripts/rgs_lookup.py is missing")
@@ -292,6 +330,7 @@ def main() -> int:
     check_skill()
     check_reference_links()
     check_references()
+    check_attribution()
     check_script()
     if errors:
         print(f"\n{len(errors)} guardrail failure(s).")

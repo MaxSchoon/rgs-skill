@@ -6,6 +6,8 @@ rgs_version: "3.8 definitive (2025-12-10); column layout also checked on 3.9 alf
 
 # RGS structure, codes, and the workbook data model
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** you must choose or validate a code for an account or a
 transaction, map an own chart of accounts to RGS, read the official workbook,
 or explain levels, the referentiecode, the referentienummer, D/C, omslag, or

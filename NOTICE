@@ -1,8 +1,108 @@
-RGS Skill — Third-Party Attribution Notices
-===========================================
+RGS Skill
+Copyright 2026 Max Schoon
 
-The software in this repository is licensed under the MIT License (see
-LICENSE).
+  Copyright holder      Max Schoon (natural person)
+  Trade name            Doc2iXBRL -- https://doc2ixbrl.com
+  Registered entity     Ontos B.V.
+
+Copyright is held by Max Schoon personally and has not been assigned to Ontos
+B.V.; Ontos B.V. is the company under which the work is published and is the
+party to be named in attribution, with "Doc2iXBRL" as its trade name. The
+entity is recorded here so the chain of title is unambiguous.
+
+================================================================================
+ATTRIBUTION NOTICE
+================================================================================
+
+This product includes the RGS Skill, made by Max Schoon, Founder, Ontos B.V.
+(trade name Doc2iXBRL) -- https://github.com/MaxSchoon/rgs-skill.
+
+WHAT THE LICENCES REQUIRE. Attribution is a condition when you REDISTRIBUTE or
+PUBLICLY SHARE this work or an adaptation of it. Apache-2.0 section 4(d)
+requires redistributions to carry the contents of this NOTICE. CC BY 4.0
+section 3(a) requires you to identify the creator, retain the copyright and
+licence notices, indicate whether you modified the work, and link to the source.
+
+CREDIT IS REQUIRED WHEN YOU USE THIS WORK. Crediting Ontos B.V. for the RGS
+Skill in a mapping (koppeltabel) deliverable, a bookkeeping or filing dossier,
+or software you built with it is required, not optional. Use of this work is
+conditioned on giving that credit. ATTRIBUTION.md sets out the exact form for
+each context.
+
+ATTRIBUTION.md gives compliant attribution templates and per-context guidance.
+Machine-readable terms are in rsl.xml and llms.txt; where any of those differ
+from the licence texts, the licence texts govern.
+
+================================================================================
+LICENSING
+================================================================================
+
+This repository is dual-licensed by content type:
+
+  * Code -- scripts/, tests/, and any other source code:
+      Apache License 2.0. Full text in LICENSE.
+
+  * Content -- SKILL.md, references/, and the documentation:
+      Creative Commons Attribution 4.0 International (CC BY 4.0).
+      Full text in LICENSE-CONTENT.
+      Human-readable summary: https://creativecommons.org/licenses/by/4.0/
+
+Creative Commons advises against applying CC licences to software, and
+Apache-2.0 is a poor fit for prose, which is why the split exists.
+
+Scope manifest -- which licence covers what, exhaustively:
+
+  Apache-2.0 (code)
+    scripts/**            Python
+    tests/**              Python
+    .github/workflows/**  CI workflow definitions
+    .github/dependabot.yml, pyrightconfig.json, .markdownlint-cli2.jsonc
+
+  CC BY 4.0 (content)
+    SKILL.md, references/**
+    README.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md,
+    .github/ISSUE_TEMPLATE/**, .github/pull_request_template.md
+
+  Neither (legal / metadata, reproduce verbatim)
+    LICENSE, LICENSE-CONTENT, LICENSES/**, NOTICE, ATTRIBUTION.md,
+    rsl.xml, llms.txt
+
+Apache-2.0 section 6 grants no trademark rights. "Ontos B.V.", "Doc2iXBRL"
+and "RGS Skill" are not licensed to you by either licence. You may -- and
+must -- name them to give the attribution required above; you may not use
+them as your own product, service, or company name, present this work or a
+derivative as your own, or suggest endorsement.
+
+--------------------------------------------------------------------------------
+Relicensing history -- read this before assuming which terms apply
+--------------------------------------------------------------------------------
+
+This repository was published under the MIT License from its creation
+(2026-06-21) until the commit that added this file. The MIT text is preserved
+verbatim at LICENSES/MIT.txt. As of the relicensing commit:
+
+  * All current and future versions are licensed as set out above.
+  * Max Schoon's own historic contributions are ADDITIONALLY offered under
+    those terms to anyone obtaining them from this point forward.
+  * Versions published under MIT REMAIN available under MIT to anyone who
+    obtains a valid MIT copy -- including through this repository's git
+    history and through existing forks. Those MIT rights include making and
+    distributing further copies and derivatives.
+
+An MIT licence, once granted, cannot be revoked. Nothing here purports to
+withdraw those rights, and any statement to the contrary would be
+unenforceable.
+
+THIRD-PARTY CONTRIBUTIONS. At the relicensing commit the only commits not
+authored by the copyright holder are automated dependency-pin updates by
+dependabot[bot]. No human third-party contribution has been merged, so no
+contribution is identified under MIT. Written relicensing consent will be
+sought before representing any future third-party contribution, or its
+author's patent position, under Apache-2.0 or CC BY 4.0.
+
+================================================================================
+THIRD-PARTY ATTRIBUTION
+================================================================================
 
 This skill summarises and points to authoritative third-party material
 about the Dutch Referentie GrootboekSchema (RGS) and Standard Business
@@ -21,8 +121,9 @@ Those documents, schemas, taxonomies, and product names remain the
 property of their respective publishers and are referenced under fair-use
 principles for interoperability and education. RGS reference codes and the
 RGS taxonomy are published by the RGS standard owner; this skill does not
-redistribute the official RGS master file — download it from
-referentiegrootboekschema.nl.
+redistribute the official RGS master file -- download it from
+referentiegrootboekschema.nl. Nothing here licenses you to reuse those
+documents; consult the publisher.
 
 Versions and rule numbers were verified at the time of writing. Always
 verify the operative version of any cited rule, code, or taxonomy against

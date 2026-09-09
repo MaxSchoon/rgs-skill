@@ -6,6 +6,8 @@ rgs_version: "MoneyBird API: RGS 3.5; AFAS Profit 7: RGS 3.7; standard: 3.8"
 
 # RGS in bookkeeping software, with MoneyBird's API in detail
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** code or a person books through a package (MoneyBird first,
 others by their RGS Ready status), an integration must create or read ledger
 accounts with RGS codes, or a chart is being set up or checked for complete

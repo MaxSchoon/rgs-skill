@@ -6,6 +6,8 @@ rgs_version: "RGS Taxonomie 3.8 = NT20_RGS_20251210; NT20 in production, NT21 fr
 
 # RGS to SBR: taxonomies, filings, and exports
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** the task is a filing or return fed from an RGS-coded
 ledger (KvK jaarrekening, IB, VPB, OB, SBR Wonen, bank credit reporting), a
 taxonomy generation or date (NT20, NT21, RGS Taxonomie), or an export that
