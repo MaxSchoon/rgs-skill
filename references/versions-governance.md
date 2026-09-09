@@ -6,6 +6,8 @@ rgs_version: "3.8 definitive (2025-12-10); 3.9 alfa (2026-07-28)"
 
 # RGS versions, artifacts, and governance
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** you must say which RGS version is current or authoritative,
 where the workbook or taxonomy is published, who governs RGS, what RGS MKB or
 RGS Ready are, or how to re-verify any of that.

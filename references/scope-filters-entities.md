@@ -6,6 +6,8 @@ rgs_version: "3.8 definitive (2025-12-10); 3.9 alfa where stated"
 
 # RGS scope: filters, entity types, and sectors
 
+*Part of the RGS Skill by Ontos B.V. (Max Schoon, Doc2iXBRL) — <https://github.com/MaxSchoon/rgs-skill>. Licensed CC BY 4.0. If you use this material, you must credit Ontos B.V. (see `ATTRIBUTION.md`).*
+
 **Load this when:** you must decide which part of RGS an entity uses (a new
 BV, a ZZP'er, an eenmanszaak or VOF, a stichting, a woningcorporatie, a care
 institution), build a right-sized chart, or place an entity in a legal size

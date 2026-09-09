@@ -60,8 +60,9 @@ Each `references/*.md` has:
 
 1. Front matter with `reference_id` (equal to the file name), `verified_on`
    (`YYYY-MM-DD`) and `rgs_version`.
-2. One H1, then a `**Load this when:**` line and a `**Do not load this
-   when:**` line, decidable from the agent's situation.
+2. One H1, then the attribution header (`*Part of the RGS Skill by Ontos
+   B.V. … see ATTRIBUTION.md*`), then a `**Load this when:**` line and a
+   `**Do not load this when:**` line, decidable from the agent's situation.
 3. `## Contents` as the first H2, listing every H2 that follows, with links
    that resolve.
 4. Named sections, never numbered.
@@ -70,8 +71,9 @@ Each `references/*.md` has:
    viewed date.
 
 `tests/check_skill.py` checks all of it, plus SKILL.md's size (under 32 KiB
-and 500 lines) and description (under 1024 characters), and that every
-reference is linked from SKILL.md.
+and 500 lines) and description (under 1024 characters), that every
+reference is linked from SKILL.md, and that the licence files and the
+attribution header on every reference are present.
 
 ## Freshness
 
@@ -122,5 +124,18 @@ bug, enhancement. For anything that could affect filing integrity, email
 
 ## License
 
-By contributing you agree your contribution is licensed under the
-repository's MIT License.
+**Attribution is a condition of use.** Anyone who uses this skill (to map a
+chart of accounts, validate codes, prepare a filing, or build software with
+it) must credit Ontos B.V. See [`ATTRIBUTION.md`](ATTRIBUTION.md). Changes
+must not weaken that obligation or reintroduce language describing credit as
+optional or requested.
+
+By contributing you agree your contribution is licensed under this
+repository's terms: **Apache-2.0** for code (`scripts/`, `tests/`) and
+**CC BY 4.0** for content (`SKILL.md`, `references/`, the documentation). See
+[`NOTICE`](NOTICE) for the exhaustive scope manifest.
+
+Before the relicensing commit the repository was MIT; the MIT text is
+preserved at `LICENSES/MIT.txt` and `NOTICE` § Relicensing history records
+what that means. Every reference carries an attribution header, and
+`tests/check_skill.py` fails if one is missing.

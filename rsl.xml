@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Really Simple Licensing (RSL) 1.0 — machine-readable licensing terms.
+  Specification: https://rslstandard.org/rsl
+
+  CREDIT IS REQUIRED WHEN YOU USE THIS WORK. Mapping a chart of accounts
+  with it, validating codes with it, preparing a filing with it, building
+  software informed by it, redistributing it, adapting it — all of it carries
+  the credit. There is no tier of use that comes without it. ATTRIBUTION.md
+  states the exact form for each context; NOTICE states the terms.
+
+  RSL's `payment type="attribution"` is the closest machine-readable expression
+  of that: permitted use conditioned on credit plus a working link.
+
+  SCOPE NOTE. A standalone RSL document scopes its content by path (RSL 1.0
+  § 3.3), so url="/" means this repository as published at
+  https://github.com/MaxSchoon/rgs-skill. <terms> links the human-readable
+  attribution rules (§ 3.17); the disclaimer mirrors the Apache-2.0 and
+  CC BY 4.0 warranty disclaimers.
+
+  DISCOVERY. RSL association (a robots.txt License: line, an HTTP Link
+  header, or an HTML <link>) can only be set where this content is served.
+  A repository hosted on GitHub carries no such association, so inside the
+  repository this file documents the terms for agents that read it; whoever
+  deploys the content on their own origin should associate it there (§ 4).
+-->
+<rsl xmlns="https://rslstandard.org/rsl">
+
+  <content url="/">
+    <license>
+      <permits type="usage">all</permits>
+      <payment type="attribution">
+        <standard>https://creativecommons.org/licenses/by/4.0/</standard>
+      </payment>
+      <legal type="disclaimer">as-is no-warranty no-liability</legal>
+    </license>
+    <copyright type="person" contactEmail="contact@doc2ixbrl.com">Max Schoon (Ontos B.V., trade name Doc2iXBRL)</copyright>
+    <terms>https://github.com/MaxSchoon/rgs-skill/blob/main/ATTRIBUTION.md</terms>
+  </content>
+
+</rsl>
