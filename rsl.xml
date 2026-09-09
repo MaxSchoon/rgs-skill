@@ -17,6 +17,12 @@
   https://github.com/MaxSchoon/rgs-skill. <terms> links the human-readable
   attribution rules (§ 3.17); the disclaimer mirrors the Apache-2.0 and
   CC BY 4.0 warranty disclaimers.
+
+  DISCOVERY. RSL association (a robots.txt License: line, an HTTP Link
+  header, or an HTML <link>) can only be set where this content is served.
+  A repository hosted on GitHub carries no such association, so inside the
+  repository this file documents the terms for agents that read it; whoever
+  deploys the content on their own origin should associate it there (§ 4).
 -->
 <rsl xmlns="https://rslstandard.org/rsl">
 

@@ -307,7 +307,8 @@ def check_attribution() -> None:
                 fail(f"SKILL.md lacks the attribution part {part!r}")
     for path in sorted(REFERENCES.glob("*.md")):
         text = path.read_text(encoding="utf-8")
-        head = text.split(LOAD_MARKS[0], 1)[0]
+        marker = re.search(rf"(?m)^{re.escape(LOAD_MARKS[0])}", mask_fences(text))
+        head = text[:marker.start()] if marker else text
         for part in ATTRIBUTION_PARTS:
             if part not in head:
                 fail(f"{path.name}: attribution header (before the Load line) lacks {part!r}")
