@@ -17,7 +17,7 @@ agent contract:
      `**[Sn]**` entry in its Sources list, every entry is cited, and every
      entry carries an `[viewed YYYY-MM-DD]` date and a URL.
   5. The licence surface is present: LICENSE (Apache-2.0), LICENSE-CONTENT
-     (CC BY 4.0), LICENSES/MIT.txt, NOTICE, ATTRIBUTION.md, rsl.xml and
+     (CC BY 4.0), NOTICE, ATTRIBUTION.md, rsl.xml and
      llms.txt exist, SKILL.md's front matter points at NOTICE, and SKILL.md
      and every reference carry the attribution the licence requires.
   6. The bundled script byte-compiles.
@@ -38,7 +38,7 @@ SKILL = ROOT / "SKILL.md"
 REFERENCES = ROOT / "references"
 SCRIPT = ROOT / "scripts" / "rgs_lookup.py"
 
-LICENSE_FILES = ("LICENSE", "LICENSE-CONTENT", "LICENSES/MIT.txt", "NOTICE",
+LICENSE_FILES = ("LICENSE", "LICENSE-CONTENT", "NOTICE",
                  "ATTRIBUTION.md", "rsl.xml", "llms.txt")
 # The credit the licence requires (ATTRIBUTION.md § The short string).
 ATTRIBUTION_PARTS = ("Max Schoon", "Ontos B.V.", "RGS Skill", "github.com/MaxSchoon/rgs-skill")

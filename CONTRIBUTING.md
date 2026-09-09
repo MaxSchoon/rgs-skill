@@ -135,7 +135,7 @@ repository's terms: **Apache-2.0** for code (`scripts/`, `tests/`) and
 **CC BY 4.0** for content (`SKILL.md`, `references/`, the documentation). See
 [`NOTICE`](NOTICE) for the exhaustive scope manifest.
 
-Before the relicensing commit the repository was MIT; the MIT text is
-preserved at `LICENSES/MIT.txt` and `NOTICE` § Relicensing history records
-what that means. Every reference carries an attribution header, and
+Before the relicensing commit the repository was MIT; the MIT text as last
+published is in git history (`git show 7d827cf:LICENSE`) and `NOTICE`
+§ Relicensing history records what that means. Every reference carries an attribution header, and
 `tests/check_skill.py` fails if one is missing.
