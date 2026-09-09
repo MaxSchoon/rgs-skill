@@ -1,126 +1,132 @@
 ---
 name: rgs
-description: >-
-  Authoritative, source-validated guide to RGS (Referentie GrootboekSchema), the Dutch
-  standardized reference chart of accounts, for bookkeeping the standardized way so annual
-  reports and SBR filings (KvK, Belastingdienst IB/VPB/OB, CBS, banks) compile easily and
-  stay compliant. USE THIS SKILL WHENEVER the task touches: choosing or validating an RGS
-  code (referentiecode), mapping/koppelen a chart of accounts to RGS, picking the right
-  account subset for an entity type (ZZP/eenmanszaak/BV) or sector (woningcorporaties,
-  agro, zorg, banken), RGS levels (niveau 1-5), omslagcodes, debet/credit, the RGS
-  Taxonomie / SBR / NT (Nederlandse Taxonomie) versions, jaarrekening/winstaangifte, or
-  RGS for multinationals / IFRS / consolidation. Trigger EVEN when the user doesn't say
-  "RGS" — e.g. "which ledger account should this go to", "standardize my chart of
-  accounts", "wat is de juiste grootboekrekening", "boek dit volgens de standaard", or any
-  standardized-Dutch-bookkeeping question. Covers MoneyBird's RGS API.
+description: Use when a task touches RGS, the Dutch Referentie GrootboekSchema (the national reference chart of accounts) - choosing or validating a referentiecode, mapping (koppelen) a grootboekrekeningschema to RGS, picking the account subset for an entity (ZZP, eenmanszaak, VOF, BV, stichting) or sector (woningcorporaties, agro, zorg), RGS levels (niveau 1-5), omslagcodes, debet/credit, the RGS Taxonomie, SBR, the Nederlandse Taxonomie (NT20, NT21), a jaarrekening or winstaangifte fed from an RGS-coded ledger, MoneyBird's rgs_code API, or RGS versus IFRS and consolidation. Trigger even when RGS is not named - "which grootboekrekening for this cost", "standardize my chart of accounts", "boek dit volgens de standaard", "wat is de juiste RGS-code", or any standardized Dutch bookkeeping question.
+license: MIT
+metadata:
+  author: MaxSchoon
+  verified_on: "2026-09-09"
+  rgs_version: "3.8 definitive; 3.9 alfa"
 ---
 
-# RGS — Referentie GrootboekSchema
+# RGS skill
 
-RGS is the Netherlands' standardized reference chart of accounts: a fixed catalogue of
-**reference codes** you map your own ledger accounts onto **once**, after which the same
-bookkeeping feeds many reports — "**boekhouden één keer, hergebruik voor meerdere
-rapportages**". Using it is exactly how you get standardized books, an easy-to-compile
-jaarrekening, and low-friction compliance — the goal of standardized bookkeeping for any
-Dutch BV or MKB entity.
+RGS is a catalogue of reference codes (`referentiecodes`) for ledger accounts.
+Map each own account to one code once, and the RGS Taxonomie carries the
+ledger into SBR reports for the KvK, the Belastingdienst, SBR Wonen and the
+banks. It is a reference classification, not a mandatory standard, and it is
+Dutch-GAAP only. This file routes; the facts, each with its source, live in
+`references/`.
 
-RGS is a **reference classification, not a mandatory standard** — you're never forced to
-use it, but adopting it makes standardized reporting and benchmarking nearly free.
+## Start here: what is in front of you
 
-## The 30-second model (read before acting)
+Pick the row that matches the artifact you have, then read the references it
+names in that order. Load one reference at a time.
 
-- **Book at niveau 4.** RGS is a 5-level tree; level 4 (`grootboekrekening`, e.g.
-  `BLimKasKas`) is the bookable account. Levels 1–3 are grouping nodes; level 5
-  (`mutatie`) exists only for some balance accounts and MKB software ignores it.
-- **The referentiecode is the key, not the number.** Map on the alphabetic code
-  (`B`/`W` + 3-letter groups). The decimal `referentienummer` is only an example and can
-  change between versions.
-- **Current version: RGS 3.8** (definitive 10 Dec 2025) → **RGS Taxonomie 3.8 ↔ NT20**
-  (definitive 2 Feb 2026). **NT20 = reporting year 2026** (the number tracks the year, not
-  2020). **MoneyBird's API is pinned to RGS 3.5** — codes you set via its API must be valid
-  in 3.5 (the stable core means common codes are).
-- **RGS is Dutch-GAAP / MKB.** It has no IFRS mapping and no consolidation logic. For a BV
-  in an international group it covers only the Dutch local/statutory ledger.
+| What you have | What the question is | Read first |
+|---|---|---|
+| A transaction, invoice, or journal line | which code it books to, at which level | `references/structure-and-codes.md` (Assign a code), then the package's section in `references/software-and-moneybird.md` if one is named |
+| An own chart of accounts, or an existing koppeltabel | how to map it, or whether the mapping is right | `references/structure-and-codes.md` (Map an own chart), `references/scope-filters-entities.md` (the subset), `references/software-and-moneybird.md` (completeness) |
+| An entity type or sector, and no chart yet | which part of RGS applies (new BV, ZZP, stichting, woningcorporatie, zorg) | `references/scope-filters-entities.md` |
+| A filing, taxonomy, or version question | jaarrekening, IB/VPB/OB aangifte, SBR, NT20/NT21, RGS Taxonomie, RGS 3.8 versus 3.9 | `references/reporting-compliance.md`, then `references/versions-governance.md` |
+| Code that reads or writes RGS codes through a package's API | what the integration must get right | `references/software-and-moneybird.md` |
+| A group, a foreign subsidiary, IFRS, consolidation, or ESEF | whether RGS reaches that far | `references/multinationals-ifrs.md` |
+| A bare question, no artifact | what RGS is, who governs it, which version is current, RGS versus RGS MKB | `references/versions-governance.md` |
 
-## Decision routing — which reference to open
+## Before any judgment: pin three things
 
-Keep SKILL.md in context and read **one** reference for the task at hand:
+1. **The RGS version the receiver accepts.** The definitive standard is RGS
+   3.8 (workbook of 2025-12-10); a 3.9 alfa is out for review; MoneyBird's
+   API accepts RGS 3.5 codes only. A code is validated against the version
+   the receiver runs, never against "the latest".
+2. **The entity filter.** The official workbook subsets by columns, not by
+   separate files: "te kiezen bij aard" columns select, "te vervallen"
+   columns drop. The `BV` column marks codes *specific to* a BV (share
+   capital among them) for other entities to drop; it is not a "use for a
+   BV" selection, and a BV must not drop it.
+3. **The level.** Book and map at niveau 4, the grootboekrekening. Levels
+   1-3 group; level 5 mutaties exist for balance accounts only and are
+   filtered out by most MKB software.
 
-| Your task | Read |
+## Invariants that hold in every case
+
+- **The referentiecode is the key.** The referentienummer is an example
+  numbering that changes between versions; never map or store on it.
+- **Never derive a code tail from its letters.** The 3-letter groups are
+  Dutch mnemonics: `WBedAut` is *Autokosten* (vehicles), not automation;
+  server, hosting and software costs sit under Kantoorkosten
+  (`WBedKanKoa`, `WBedKanSof`). A BV's share capital is `BEivGok…`; the
+  `BEivKap…` family is the privé equity of natural persons. Confirm every
+  niveau-4 code by description and parent, with `scripts/rgs_lookup.py`
+  against the official workbook.
+- **Retired codes are flagged, not deleted.** The workbook keeps them with
+  the `Inactief` column set; the text "VERVALLEN" appears in one description
+  only. Check the column.
+- **Omslag runs both ways.** An account that can swing debit/credit (bank,
+  rekening-courant, BTW, transitoria) carries an omslagcode; couple both the
+  code and its counterpart or the balance reports under the wrong rubriek.
+- **"Overige …" has two readings**, the literal residual line and everything
+  the parent did not name; disambiguate by the parent rubriek, and never pick
+  an "overige" code by description alone.
+- **NT20 is the taxonomy generation for filings made in 2026**, not the year
+  2020; NT21 enters production on 2026-12-09.
+- **Correct by correcting entry.** Never rewrite a booked period to fix a
+  miscoding.
+
+## Reference index
+
+| Read when the question is about | File |
 |---|---|
-| "Which code do I book this to?" / code structure, levels, fields, omslag, D/C | `references/structure-and-codes.md` |
-| Pick the right account subset for an entity (BV/EZ/ZZP) or sector; size classes | `references/scope-filters-entities.md` |
-| Filing: jaarrekening (KvK), IB/VPB/OB aangifte, SBR, taxonomy/NT versions, BW2 | `references/reporting-compliance.md` |
-| Doing it in software / the MoneyBird API, setup workflow, pitfalls, datasets | `references/software-and-moneybird.md` |
-| Foreign entities, IFRS, consolidation, ESEF, listed companies | `references/multinationals-ifrs.md` |
-| Version/governance authority, "is this current?", RGS Ready, RGS MKB vs RGS | `references/fundamentals-governance.md` |
-| Citing a source / re-validating freshness | `references/sources.md` |
+| Which version is current, the 3.9 release calendar, the workbook and taxonomy artifacts, who governs RGS, RGS versus RGS MKB, RGS Ready, how to re-verify freshness | `references/versions-governance.md` |
+| The workbook's columns, the five levels, how a code and its number are built, D/C and omslag mechanics, extensions, the procedure to assign a code or map an own chart | `references/structure-and-codes.md` |
+| Subsetting by entity (ZZP, EZ/VOF, BV, stichting) and sector (WoCo, agro, zorg, banks), the filter columns with measured counts, legal size classes | `references/scope-filters-entities.md` |
+| The RGS to SBR chain, the RGS Taxonomie's entrypoints, NT20/NT21 dates, KvK deposit, Belastingdienst returns, the XAF audit file and the RGS Brugstaat | `references/reporting-compliance.md` |
+| MoneyBird's ledger-accounts API, what other packages support, the setup workflow, the pitfalls the standard owner names | `references/software-and-moneybird.md` |
+| Groups, foreign subsidiaries, IFRS, consolidation, ESEF, and where RGS stops | `references/multinationals-ifrs.md` |
 
-Don't load all of them — that defeats the purpose. Route by the table.
+## Scripts
 
-## Core workflow: assign an RGS code to a transaction or account
-
-1. **Identify the account's nature** — balance or P&V? asset/liability/equity or
-   cost/revenue? This fixes the first letter (`B`/`W`) and hoofdrubriek.
-2. **Find the candidate code at niveau 4.** Use the lookup script (below) or browse the
-   official master. Disambiguate near-identical "Overige …" descriptions by their parent
-   rubriek — "overige" is the single most error-prone term.
-3. **Validate it exists and is active** (not `VERVALLEN`), in the version your software
-   supports (RGS 3.5 for MoneyBird's API). Never invent a niveau-4 code tail — verify it.
-4. **Check the entity fit** — is the code flagged for this entity type (BV)? A BV uses
-   `BEiv` share capital + reserves, **not** the `BEivKap…` privé accounts (those are
-   EZ/VOF). See `scope-filters-entities.md`.
-5. **Handle omslag** — if the account can swing debit/credit (bank, RC, transitoria, tax),
-   couple **both** the code and its `omslagcode` counterpart, or the balance reports under
-   the wrong rubriek.
-6. **Book it**, then confirm completeness — every account must be coupled. MoneyBird
-   enforces this (it blocks the RGS Brugstaat export and blocks creating uncoded ledger
-   accounts via the API).
-
-For a **new** BV, the cleanest path is to use RGS codes as the chart of accounts from day
-one (in MoneyBird: add categories from the **standard collections**, which auto-attach the
-RGS code) rather than inventing custom categories and mapping later.
-
-## The bundled lookup tool
-
-`scripts/rgs_lookup.py` validates/looks up/searches RGS codes. It reads the **official RGS
-Excel master** (download from referentiegrootboekschema.nl → Kennisbank) or any CSV export;
-with no file it falls back to a tiny built-in seed of attested codes (convenience only —
-**not authoritative**, verify against the master before booking).
+- **`scripts/rgs_lookup.py`** validates, looks up, and searches codes in the
+  official RGS workbook, a CSV export, or its built-in seed. It reads
+  `.xlsx` with the standard library alone, understands the official filter
+  columns (`--entity bv|ez|zzp|woco`, `--basis`, `--nivo 4`), reports
+  `Inactief` and the omslag pair, and fetches the official workbook with
+  `--fetch 3.8` (URL verified 2026-09-09; the seed is a convenience only).
+  Run it before asserting that any niveau-4 code exists.
 
 ```bash
-# Validate a code exists and is active:
-python scripts/rgs_lookup.py --file RGS_3.8.xlsx --validate WBedAlkOal
-# Search by Dutch description, restricted to bookable level + BV:
-python scripts/rgs_lookup.py --file RGS_3.8.xlsx --search "afschrijving" --entity BV --nivo 4
-# Inspect one account (shows omslag pair, D/C):
-python scripts/rgs_lookup.py --file RGS_3.8.xlsx --lookup BVorOva
+python3 scripts/rgs_lookup.py --fetch 3.8                       # once; caches ~/.cache/rgs/
+python3 scripts/rgs_lookup.py --validate WBedKanKoa             # exists, active, level, omslag
+python3 scripts/rgs_lookup.py --search hosting --entity bv --nivo 4
+python3 scripts/rgs_lookup.py --lookup BLimBanRba               # shows omslag -> BSchSakRba
 ```
 
-It matches column headers case-insensitively against known aliases (official Excel and
-GBNED exports differ); override with `--col-code` / `--col-desc` etc., and pick a tab with
-`--sheet` (e.g. an MKB or Totaal tab). For MoneyBird compatibility, feed it a dataset
-filtered to codes valid in RGS 3.5.
+## Evidence and authority
 
-## Using this with MoneyBird (or any RGS-aware package)
+Tier 1: referentiegrootboekschema.nl (Kennisbank workbooks and the
+`/actueel` news page), nltaxonomie.nl, sbr-nl.nl, kvk.nl, belastingdienst.nl,
+wetten.overheid.nl and the Staatsblad. Tier 2: boekhoudplaza.nl and
+softwarepakketten.nl (Onderzoeksbureau GBNED), the practitioner reference
+behind RGS MKB and RGS Ready, not the standard. Tier 3: vendor documentation,
+authoritative only for that product's behaviour. Every reference ends with a
+`Sources` list; a claim's `[Sn]` marker resolves there, with the date the
+page was viewed. The freshness check is `referentiegrootboekschema.nl/actueel`.
+For iXBRL, ESEF, and KvK deposit mechanics, the sibling iXBRL skill
+(<https://github.com/MaxSchoon/ixbrl>) is the reference; this skill stops at
+the ledger.
 
-If you book in **MoneyBird**, the key API fact validated here: MoneyBird exposes
-`rgs_code` (RGS **3.5**) on `ledger_accounts`; on **POST/PATCH it's a top-level body field
-— a sibling of `ledger_account`, not inside it — and required on create**; in responses
-the link surfaces via the `taxonomy_item` object. Details, the setup workflow, and the
-pitfalls are in `references/software-and-moneybird.md`, which also covers Exact Online,
-Twinfield, AFAS, e-Boekhouden, SnelStart, Yuki and Asperion. Whatever the package, never
-overwrite a booked period to "fix" a miscoding — post a **correcting entry** so the audit
-trail stays intact.
+## When this skill cannot answer
 
-## Source discipline (this matters)
+If a question concerns a code not in the workbook version at hand, a sector
+schema this skill does not cover (gemeenten, pensioenfondsen), a version
+newer than the references cite, or a package not documented here, say so and
+point at the primary source. Do not invent a code tail, a version, a date,
+or an entrypoint. The cost of a wrong code in a filed return is real.
 
-Everything here was validated against primary sources on **2026-06-21** (see
-`references/sources.md`). RGS is versioned ~annually, so **re-validate version-sensitive
-claims after late 2026** (an RGS 3.9 / NT21 cycle is expected). The freshness check is
-**referentiegrootboekschema.nl/actueel** (use whatever web search/fetch tools your agent
-runtime provides). Treat referentiegrootboekschema.nl, sbr-nl.nl, logius.nl,
-belastingdienst.nl and kvk.nl as authoritative; boekhoudplaza.nl / softwarepakketten.nl
-(GBNED) as the de-facto practitioner reference (not the formal standard); vendor docs as
-corroborating. When unsure whether a code or rule is still current, **look it up — don't
-rely on memory.**
+## Editing this skill
+
+Runtimes cap the frontmatter `description` at 1024 characters and load this
+whole body on activation; keep it under 500 lines and about 5,000 tokens, and
+put substance in `references/`. Every reference carries front matter, a
+`Load this when` and `Do not load this when` line, a `Contents` list, `[Sn]`
+markers, and a `Sources` section last. `tests/check_skill.py` enforces all of
+it; `CONTRIBUTING.md` has the rules.

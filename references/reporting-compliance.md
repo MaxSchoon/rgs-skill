@@ -1,128 +1,167 @@
-# RGS → statutory reporting & tax compliance
+---
+reference_id: reporting-compliance
+verified_on: 2026-09-09
+rgs_version: "RGS Taxonomie 3.8 = NT20_RGS_20251210; NT20 in production, NT21 from 2026-12-09"
+---
 
-> This is *why* RGS is worth the effort: one RGS-coded ledger feeds KvK annual
-> accounts, Belastingdienst returns (IB/VPB/OB), CBS and bank reports — without
-> re-keying. Read this when the task is about filings, taxonomy versions, or the
-> jaarrekening.
+# RGS to SBR: taxonomies, filings, and exports
 
-## The mechanism: RGS → SBR → filing
+**Load this when:** the task is a filing or return fed from an RGS-coded
+ledger (KvK jaarrekening, IB, VPB, OB, SBR Wonen, bank credit reporting), a
+taxonomy generation or date (NT20, NT21, RGS Taxonomie), or an export that
+carries RGS codes (XAF audit file, RGS Brugstaat).
 
-The principle is verified on Belastingdienst.nl: with SBR you record data once, in a
-standard way, then reuse it for many reports. The chain has three layers:
+**Do not load this when:** the question is iXBRL or XBRL mechanics of the
+deposit itself (entry points, report packages, validator codes): that is the
+sibling iXBRL skill, <https://github.com/MaxSchoon/ixbrl>, file
+`references/jurisdictions/nl-sbr.md`. This file stops where the RGS code
+leaves the ledger.
 
-1. **Grootboekrekening → RGS code.** Each ledger account is tagged with an RGS
-   referentiecode. In the XML Auditfile Financieel (XAF) this is the `LeadReference`
-   element on `ledgerAccount`; `LeadCrossReference` carries the omslagcode for negative
-   balances.
-2. **RGS code → SBR taxonomy concept.** The **RGS Taxonomie** (an XBRL artifact, built
-   on the Nederlandse Taxonomie Architectuur) links each RGS code to a taxonomy element
-   via Generic Link References. The current version (Toelichting v15) covers **32 SBR
-   rapportages**, each a separate **entrypoint**. Historically ~85% of RGS elements map
-   1:1 to taxonomy concepts; the rest need summation or breakdown.
-3. **SBR concept → filing.** The tagged data is rendered as XBRL/iXBRL and submitted via
-   **Digipoort** (government) or the **Bancaire Infrastructurele Voorziening** (banks).
+## Contents
 
-A simpler, widely-used alternative to the full taxonomy is the **RGS Brugstaat** — a
-standardized XML of RGS-based ledger balances handed to fiscal/reporting software (e.g.
-for the winstaangifte IB/VPB). This is what most SME packages expose, MoneyBird included.
+- [The chain in one paragraph](#the-chain-in-one-paragraph)
+- [Which taxonomy generation, and when](#which-taxonomy-generation-and-when)
+- [What the RGS Taxonomie 3.8 actually maps](#what-the-rgs-taxonomie-38-actually-maps)
+- [Mapping method](#mapping-method)
+- [KvK annual accounts](#kvk-annual-accounts)
+- [Belastingdienst returns](#belastingdienst-returns)
+- [Exports that carry the code: XAF and RGS Brugstaat](#exports-that-carry-the-code-xaf-and-rgs-brugstaat)
+- [Sources](#sources)
 
-**Mapping types** (referentiegrootboekschema.nl "Instructie mapping RGS en SBR"):
-*balanced* vs *unbalanced* mapping (whether the target sub-report stays in balance at
-each level), and *direct* vs *indirect* (an "Overige …" post is mapped indirectly as
-the level total minus the directly-mapped posts).
+## The chain in one paragraph
 
-## ⚠️ The NT version trap: NT20 ≠ year 2020
+Each own ledger account carries one referentiecode; the RGS Taxonomie, an XBRL
+artifact built on the Nederlandse Taxonomie architecture, links each code to
+the concepts of specific SBR reports (entrypoints), so reporting software can
+fill a KvK, Belastingdienst, SBR Wonen or bank report from the ledger without
+re-keying [S1] [S2]. The Belastingdienst promotes RGS because an RGS-coded
+administration lets it compare BTW and income-tax returns and run standard
+analyses automatically before an audit [S3].
 
-The Nederlandse Taxonomie version number tracks the **reporting/tax year**, not the
-calendar year:
+## Which taxonomy generation, and when
 
-- **NT20 = reporting year 2026** — the **current production taxonomy for filings made in
-  2026.**
-- NT19 = reporting year 2025 (superseded for new filings).
-- NT21 = reporting year 2027 — in development; goes to production **9 December 2026**.
+The NT number is a generation, not a year. Read the entrypoint file names:
+under NT20 the KvK entrypoints are `kvk-rpt-jaarverantwoording-2025-…` (annual
+accounts for financial year 2025, deposited in 2026), while the Belastingdienst
+entrypoints mix years: `bd-rpt-vpb-aangifte-2025`, `bd-rpt-ihz-aangifte-2025`,
+`bd-rpt-ihz-via-2025`, `bd-rpt-ob-aangifte-2026`, `bd-rpt-ob-suppletie-2026`,
+`bd-rpt-icp-opgaaf-2026`, `bd-rpt-vpb-sba-2026`,
+`bd-rpt-vpb-verzoekwijzigingva-2026` [S4] [S5].
 
-**For any 2026 compliance work, target NT20 and RGS 3.8 (`NT20_RGS_20251210`).** Concretely:
-- **Belastingdienst** = NT20 (`NT20_BD_20251210`, with point releases NT20.1
-  `20260218` / NT20.2 `20260916`, and corrected `NT20_20260126.zip` for ICP 2026). NT20
-  covers: aangifte VPB 2025, voorlopige aanslag VPB 2026, aangifte IB 2025, aangifte OB
-  2026, ICP 2026, suppletie OB 2026, VIA 2025.
-- **KvK** jaarverantwoording for **boekjaar 2025** (filed in 2026) is under NT20.
-- **RGS Taxonomie 3.8** (definitief 2 Feb 2026) maps RGS 3.8 to KvK (NT20),
-  Belastingdienst (NT20), SBR Nexus (FT20), SBR Wonen (dVi2025-NT20).
+From the SBR release calendar (updated 2026-07-30) [S6]:
 
-> Note the boekjaar-vs-aangiftejaar mismatch *within* NT20: KvK covers boekjaar 2025
-> while several BD streams cover belastingjaar 2026 (OB/ICP) and 2025 (VPB/IB). Don't
-> assume one year per taxonomy generation. Always pick the sub-release matching the
-> specific berichtstroom (the ICP correction is mandatory for ICP 2026).
+| Generation | Domain | Definitive | Production |
+|---|---|---|---|
+| NT20.2 | Belastingdienst (`NT20_BD_20260916`) | 2026-07-31 | 2026-09-16 |
+| NT21 | KvK (`NT21_KVK_20261209`) | 2026-10-29 | 2026-12-09 |
+| NT21 | Belastingdienst (`NT21_BD_20261209`) | 2026-11-05 | 2026-12-09 |
+| NT21.1 | Belastingdienst | 2027-01-28 | 2027-02-17 |
+| NT21 | OCW | 2027-01-05 | 2027-02-17 |
 
-## KvK annual accounts (deponering jaarrekening)
+RGS 3.8 was built on NT20 and FT20; the 3.9 alfa on NT21 and FT21, with the
+bank, tax and SBR Wonen entrypoints "nog niet beschikbaar" at alfa time
+[S7] [S8]. RGS Taxonomie 3.9 is planned for 2027-01-15
+(`references/versions-governance.md`). On nltaxonomie.nl the RGS tree ends at
+`nt20/`; there is no `nt21/` yet [S9].
 
-- **Legal basis:** art. **2:394 BW** requires depositing the jaarrekening with the
-  Handelsregister; the *Besluit elektronische deponering* mandates **SBR**.
-- **Mandatory SBR/XBRL by class:** micro & klein since boekjaar 2016; middelgroot since
-  2017; **groot since boekjaar 2025** (the long-standing large-company exception lapsed
-  via the 18 Dec 2024 amendment, for boekjaren starting on/after 1 Jan 2025). Only
-  remaining exception: uitgevende instellingen (art. 5:25o Wft).
-- **Formats:** classic SBR (XBRL instance) or European **XHTML/iXBRL** (available from
-  boekjaar 2024; large companies now file iXBRL).
-- **Routes:** micro/klein may use the free **Zelf Deponeren** portal or software via
-  SBR; middelgroot/groot must use software via SBR with a **PKIoverheid certificate**.
-  Deadline: within **12 months** of boekjaar end.
-- **RGS → line items:** the RGS Taxonomie ships a per-class mapping linkbase
-  (`rgs-mapping_jaarverantwoording-{year}-nlgaap-{class}.xml`) for each entrypoint
-  (`...nlgaap-micro/-klein/-middelgroot/-groot`, plus `-publicatiestukken`), so the same
-  RGS-coded ledger fills the right publication model.
+## What the RGS Taxonomie 3.8 actually maps
 
-## Belastingdienst (IB / VPB / OB)
+`NT20_RGS_20251210.zip` unpacks to `www.nltaxonomie.nl/rgs/nt20/rgs/20251210/`
+with `dictionary/`, `entrypoints/`, `mapping/` and `presentation/`. The
+`entrypoints/` directory holds 25 schemas: `rgs-rpt-reference-codes.xsd`
+(the code list itself) and 24 `rgs-to-<domain>-…` schemas [S10]:
 
-SBR is **mandatory** for these via Digipoort (PKIoverheid certificate).
+| Domain | Entrypoints mapped |
+|---|---|
+| Belastingdienst (`bd`) | `ihz-aangifte-2025`, `vpb-aangifte-2025`, `ob-aangifte-2026`, `ob-suppletie-2026` |
+| KvK (`kvk`) | `jaarverantwoording-2025-nlgaap-` micro, klein, middelgroot, groot, each with `-publicatiestukken` and `-verticaal` variants where they exist (12 in total) |
+| SBR Wonen (`bzk`) | six `de-verantwoordingsinformatie-2025-toegelaten-instellingen-volkshuisvesting-…` variants (administratieve, hybride, juridische scheiding, verlicht regime, and geconsolideerd) |
+| Banks (`frc`) | `nt-sbr-jaarrekening-rechtspersoon-2025`, `-natuurlijk-persoon-2025`, `-beperkt-2025` |
 
-- **IB / VPB — the winstaangifte flow:** the RGS-coded bookkeeping produces an **RGS
-  Brugstaat** (or feeds the RGS Taxonomie directly) into fiscal software, which maps to
-  the `bd-rpt-ihz-aangifte-{year}` (IB) and `bd-rpt-vpb-aangifte-{year}` (VPB)
-  entrypoints (linkbases `rgs-mapping_ihz-aangifte-{year}.xml` /
-  `rgs-mapping_vpb-aangifte-{year}.xml`). This is where RGS pays off most.
-- **OB / BTW:** `bd-rpt-ob-aangifte-{year}` (+ `ob-suppletie`, `icp-opgaaf`). Largely
-  driven by RGS turnover/VAT codes; far simpler than the winstaangifte. (Reverse charge —
-  *btw verlegd* — for foreign B2B services maps to OB rubriek 4a/4b with self-accounted
-  BTW; pick the dedicated reverse-charge purchase rate, not plain 0%.)
+The KvK NT20 directory itself lists 27 entrypoints, including sector ones
+(banken, verzekeringsmaatschappijen, pensioenfondsen, zorginstellingen,
+stichtingen, coöperaties, organisaties zonder winststreven, fondsenwervende
+organisaties, toegelaten instellingen volkshuisvesting) that the RGS Taxonomie
+does not map [S5] [S10]. The mapping linkbases are named `map-<domain>-…xml`
+(for example `map-bd-vpb_bd-lr-hd_par_dec-vpb.xml`) [S10]. A human-readable
+mapping and its toelichting are on the Kennisbank as "RGS 3.8 mapping naar SBR
+NT20 concepten" [S11]. Earlier editions of this skill cited "32 entrypoints"
+and linkbases named `rgs-mapping_…`; the zip shows neither.
 
-## Title 9 Book 2 BW alignment
+## Mapping method
 
-- **Title 9 of Book 2 BW** ("De jaarrekening en het bestuursverslag") sets the statutory
-  requirements. The concrete line-item layouts come from the **Besluit modellen
-  jaarrekening** (BWBR0003648): balans = model A/B (C/D if small), winst-en-verliesrekening
-  = model E/F (I/J if small); micro (2:395a) is model-exempt; banks/insurers use K–S.
-- **RGS rubrieken align to these models by construction** — RGS levels were derived from
-  the NT/BT taxonomy concepts and aligned to the BW2 models, so the RGS hoofdrubrieken
-  structurally mirror the statutory balans/W&V models *and* the SBR jaarverantwoording
-  entrypoints at once. That is exactly why RGS standardization makes the annual report
-  easier to compile (the user's stated goal).
+The owner's instruction defines mapping as coupling source elements (RGS) to
+target elements (an SBR entrypoint). A sub-report is mapped **balanced** when
+every level of the target stays in balance, which requires that no source
+level is more condensed than the target (1:1 or 1:n, never n:1) and that
+totals hold at every level; otherwise it is **unbalanced**. Mapping is
+iterative per level, and unmapped elements stay untagged [S12]. The
+handleiding adds that "Overige …" lines can be tagged **direct** (the literal
+line) or **indirect** (everything the higher elements excluded), which is why
+each level needs its own residual [S13].
 
-## Mapping / koppeltabel resources
+## KvK annual accounts
 
-Official downloads (referentiegrootboekschema.nl Kennisbank, RGS 3.8 category):
-- **`NT20_RGS_20251210`** — the RGS Taxonomie ZIP (RGS 3.8 → NT20), the XBRL koppeltabel.
-- **"RGS 3.8 mapping naar SBR NT20 concepten"** — human-readable mapping (RGS code → SBR concept).
-- **"Toelichting RGS 3.8 mapping naar SBR NT20 concepten"** + **"Toelichting RGS
-  Taxonomie versie 15"** (method: Generic Link References, 32 entrypoints).
-- **`http://nltaxonomie.nl/`** — publication root (`nt20/`, `nt21/`, `rgs/`).
-- **Instructie mapping RGS en SBR** — the methodology (balanced/unbalanced, direct/indirect).
+All legal persons deposit electronically via SBR from financial year 2025:
+micro and klein since financial year 2016, middelgroot since 2017, groot from
+2025, after the Besluit elektronische deponering handelsregister was amended on
+2024-12-18; XBRL and iXBRL are both permitted and post or e-mail deposit
+lapses [S14] [S15]. Micro and klein entities may use software via SBR or,
+for listed legal forms, the Zelf Deponeren portal; middelgroot and groot must
+use software via SBR with a PKIoverheid certificate [S15]. The size class
+selects the classic KvK entrypoint the RGS Taxonomie maps to
+(`references/scope-filters-entities.md`); RTS, Reporting Manual and FAQ
+editions for financial year 2026 are dated 2026-07-10 [S14]. Deposit
+mechanics beyond the ledger are the iXBRL skill's domain.
 
-**Logius role:** via the Kenniscentrum XBRL, Logius beheert the Nederlandse Taxonomie and
-the NTA, runs Digipoort, and supports the uitvragende partijen (Belastingdienst, DUO,
-KVK, SBR-Wonen). In the taxonomy split Logius owns the generic "SBR" and BW2-specific
-"VenJ" modules; the **RGS module is owned by RGS** and contains the mapping from RGS to
-parts of the CBS, KvK, BD and FRC taxonomieën.
+## Belastingdienst returns
 
-## Caveats
+The RGS Taxonomie maps to the IB (`ihz`), VPB and OB entrypoints listed above,
+so an RGS-coded ledger can feed the winstaangifte and the BTW return through
+fiscal software [S10]. The Belastingdienst's own RGS page describes the
+benefit as automatic comparison of BTW and IB returns and standard analyses
+during audit preparation [S3]. Which point release applies to a given
+berichtstroom (NT20, NT20.1, NT20.2) is on the release calendar [S6].
 
-- **NT20 ≠ 2020** is the #1 trap — restated because the digits invite misreading.
-- **Entrypoint count drifts by version** (v13.b cited 28, v15 cites 32) — confirm against
-  the exact RGS Taxonomie version you deploy.
-- **RGS Brugstaat** exact XML structure should be confirmed against the RGS spec, not a
-  single vendor page.
-- **wetten.overheid.nl** consolidated text for the Besluit modellen jaarrekening may lag;
-  verify article numbers against the live version before quoting verbatim.
-- **RJ (Richtlijnen voor de Jaarverslaggeving)** supplement BW2 for middelgroot/groot but
-  are not free/online and not part of the statutory RGS↔taxonomy koppeltabel.
+## Exports that carry the code: XAF and RGS Brugstaat
+
+- **XAF (XML Auditfile Financieel).** The standard owner's note on the SBR
+  coupling says two elements were added to `generalLedger/ledgerAccount`:
+  `leadReference` for the RGS referentiecode and `leadCrossReference` for the
+  RGS omslagcode, used for negative balances [S16]. GBNED documents that the
+  2017 edition of XAF 3.2 instead specified a `taxoRef` element and marked
+  `leadCode`, `leadDescription`, `leadReference` and `leadCrossReference` as
+  "NIET gebruiken voor RGS", that vendors implemented both patterns, and that
+  XAF 4.0 handles RGS codes uniformly [S17]. When reading a XAF, look in both
+  places and record the RGS version separately; the file cannot name it in
+  the 2014 layout [S17].
+- **RGS Brugstaat.** A standard koppelvlak defined by GBNED with software
+  vendors to move RGS-coded ledger balances from bookkeeping software to
+  fiscal software for the IB and VPB winstaangifte [S18]. MoneyBird exports it
+  once every category has an RGS 3.5 code, and cites the CBS questionnaire as
+  a use [S19]. GBNED notes the brugstaat documentation (2.0, 2020) tells the
+  producer to account for omslagcodes, and that there is no market-wide
+  agreement on whether the producer or the consumer applies them [S20].
+
+## Sources
+
+- **[S1]** RGS Taxonomie (softwareontwikkelaars). Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/softwareontwikkelaars/rgs-taxonomie> [viewed 2026-09-09]. Tier 1.
+- **[S2]** English (RCSFI "is connected to XBRL-tags in the Dutch taxonomy"). Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/english> [viewed 2026-09-09]. Tier 1.
+- **[S3]** Referentie Grootboekschema: iets voor u? Belastingdienst. Available from: <https://www.belastingdienst.nl/wps/wcm/connect/nl/intermediairs/content/referentie-grootboekschema-iets-voor-u> [viewed 2026-09-09]. Tier 1.
+- **[S4]** Index of /nt20/bd/20251210/entrypoints/ (8 files). Logius, nltaxonomie.nl. Available from: <http://www.nltaxonomie.nl/nt20/bd/20251210/entrypoints/> [viewed 2026-09-09]. Tier 1.
+- **[S5]** Index of /nt20/kvk/20251210/entrypoints/ (27 files). Logius, nltaxonomie.nl. Available from: <http://www.nltaxonomie.nl/nt20/kvk/20251210/entrypoints/> [viewed 2026-09-09]. Tier 1.
+- **[S6]** Releasekalender 2026-2027 (laatste update 30-07-2026). SBR Nederland. Available from: <https://www.sbr-nl.nl/werken-met-sbr/taxonomie/releasekalender> [viewed 2026-09-09]. Tier 1.
+- **[S7]** RGS 3.8-def.xlsx, sheet `Recap` ("op basis van NT20-FT20"; entrypoints assessed). Taakgroep RGS, 2025-12-10. Downloaded from <https://www.referentiegrootboekschema.nl/sites/default/files/kennisbank/RGS%203.8-def.xlsx> [viewed 2026-09-09]. Tier 1.
+- **[S8]** RGS 3.9-alfa.xlsx, sheet `Recap` ("op basis van NT21-FT21"). Taakgroep RGS, 2026-07-28. Downloaded from <https://www.referentiegrootboekschema.nl/sites/default/files/kennisbank/RGS%203.9-alfa.xlsx> [viewed 2026-09-09]. Tier 1.
+- **[S9]** Index of /rgs/ (nt11 to nt20). Logius, nltaxonomie.nl. Available from: <http://www.nltaxonomie.nl/rgs/> [viewed 2026-09-09]. Tier 1.
+- **[S10]** NT20_RGS_20251210.zip (RGS Taxonomie 3.8), directory listing of `entrypoints/` and `mapping/`. Taakgroep RGS. Downloaded from <https://www.referentiegrootboekschema.nl/sites/default/files/kennisbank/NT20_RGS_20251210.zip> via <https://www.referentiegrootboekschema.nl/nt20rgs20251210> [viewed 2026-09-09]. Tier 1.
+- **[S11]** RGS 3.8 mapping naar SBR NT20 concepten, and its toelichting (Kennisbank items). Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/rgs-38-mapping-naar-sbr-nt20-concepten>, <https://www.referentiegrootboekschema.nl/toelichting-rgs-38-mapping-naar-sbr-nt20-concepten> [viewed 2026-09-09]. Tier 1.
+- **[S12]** Instructie mapping RGS en SBR. Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/instructie-mapping-rgs-en-sbr> [viewed 2026-09-09]. Tier 1.
+- **[S13]** Handleiding Referentie GrootboekSchema. Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/handleiding-referentie-grootboekschema> [viewed 2026-09-09]. Tier 1.
+- **[S14]** Uitbreiding elektronische deponering handelsregister (documents for financial year 2026 dated 2026-07-10). SBR Nederland. Available from: <https://www.sbr-nl.nl/sbr-domeinen/handelsregister/uitbreiding-elektronische-deponering-handelsregister> [viewed 2026-09-09]. Tier 1.
+- **[S15]** Deponeren met SBR (updated 2026-03-05). KVK. Available from: <https://www.kvk.nl/deponeren/deponeren-met-sbr/> [viewed 2026-09-09]. Tier 1.
+- **[S16]** RGS en de koppeling tussen SBR en Auditfile Financieel. Taakgroep RGS. Available from: <https://www.referentiegrootboekschema.nl/rgs-en-de-koppeling-tussen-sbr-en-auditfile-financieel> [viewed 2026-09-09]. Tier 1.
+- **[S17]** RGS in de Auditfile Financieel (XAF) (note of 2025-02-20 on XAF 4.0). Onderzoeksbureau GBNED, boekhoudplaza.nl. Available from: <https://www.boekhoudplaza.nl/bericht/1453&bronw=1/RGS_in_de_Auditfile_FInancieel_XAF.htm> [viewed 2026-09-09]. Tier 2.
+- **[S18]** RGS Ready boekhoudsoftware, section "RGS brugstaat". Onderzoeksbureau GBNED, softwarepakketten.nl. Available from: <https://www.softwarepakketten.nl/pag_reg/81/RGS_Ready.htm> [viewed 2026-09-09]. Tier 2.
+- **[S19]** Voeg gemakkelijk categorieën toe met het RGS, 2024-07-25. Moneybird. Available from: <https://www.moneybird.nl/blog/categorieen-toevoegen-met-het-rgs/> [viewed 2026-09-09]. Tier 3.
+- **[S20]** RGS Omslagcodes toegelicht. Onderzoeksbureau GBNED, boekhoudplaza.nl. Available from: <https://www.boekhoudplaza.nl/wiki_uitleg/17/RGS_Omslagcodes_toegelicht.htm> [viewed 2026-09-09]. Tier 2.
